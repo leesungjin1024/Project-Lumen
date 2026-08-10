@@ -7,6 +7,9 @@
 #include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Lumen/Reflection/MirrorActor.h"
+#include "Lumen/Reflection/Projectile.h"
+
 
 ALumenCharacter::ALumenCharacter()
 {
@@ -196,8 +199,28 @@ void ALumenCharacter::AimGamepad(const FInputActionValue& Value)
 
 void ALumenCharacter::StartFire(const FInputActionValue& Value)
 {
-	// TODO(2주차, 5-1/5-2): 발사 시작 + 발열 누적 시작
-	UE_LOG(LogTemp, Log, TEXT("StartFire (color=%d)"), static_cast<uint8>(CurrentColor));
+	if (!ProjectileClass) return;
+
+	const FVector Direction = FVector(CurrentAimDirection, 0.f);
+	const FVector DesiredOffset = Direction * 100.f; // 원래 원하던 총구 거리
+	FVector SpawnLocation = GetActorLocation() + DesiredOffset;
+
+	// 사전 검사: 원하는 스폰 위치까지 가는 길에 뭔가 있으면 그 앞으로 당김
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(MuzzleTrace), false, this);
+	FHitResult PreHit;
+	if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), SpawnLocation, ECC_Visibility, Params))
+	{
+		SpawnLocation = PreHit.ImpactPoint - Direction * 2.f; // 막힌 지점 바로 앞
+	}
+
+	const FRotator SpawnRotation = Direction.Rotation();
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+
+	if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams))
+	{
+		NewProjectile->InitVelocity(Direction);
+	}
 }
 
 void ALumenCharacter::StopFire(const FInputActionValue& Value)
@@ -235,14 +258,31 @@ void ALumenCharacter::SelectColor(ELumenWeaponColor NewColor)
 	UE_LOG(LogTemp, Log, TEXT("SelectColor: %d"), static_cast<uint8>(CurrentColor));
 }
 
-void ALumenCharacter::Interact(const FInputActionValue& Value)
-{
-	// TODO: 상호작용 대상 정의 필요 (문서에 아직 없음 - 필요 시 5-6 퍼즐 오브젝트와 연동)
-	UE_LOG(LogTemp, Log, TEXT("Interact"));
-}
-
 void ALumenCharacter::TogglePause(const FInputActionValue& Value)
 {
 	// TODO(4주차, 11-1): 일시정지 위젯 생성/제거
 	UE_LOG(LogTemp, Log, TEXT("TogglePause"));
+}
+
+void ALumenCharacter::SetInteractableMirror(AMirrorActor* Mirror)
+{
+	CurrentInteractableMirror = Mirror;
+}
+
+void ALumenCharacter::ClearInteractableMirror(AMirrorActor* Mirror)
+{
+	if (CurrentInteractableMirror == Mirror)
+	{
+		CurrentInteractableMirror = nullptr;
+	}
+}
+
+void ALumenCharacter::Interact(const FInputActionValue& Value)
+{
+	// TODO: 상호작용 대상 정의 필요 (문서에 아직 없음 - 필요 시 5-6 퍼즐 오브젝트와 연동)
+	UE_LOG(LogTemp, Log, TEXT("Interact"));
+	if (CurrentInteractableMirror)
+	{
+		CurrentInteractableMirror->RotateStep();
+	}
 }

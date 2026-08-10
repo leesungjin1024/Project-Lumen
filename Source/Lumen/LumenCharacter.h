@@ -16,6 +16,8 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
+class AProjectile;
+class AMirrorActor;
 
 /**
  * 색 전환에 쓰이는 색상 enum (5-7 참고)
@@ -36,6 +38,8 @@ class LUMEN_API ALumenCharacter : public ACharacter
 
 public:
 	ALumenCharacter();
+	void SetInteractableMirror(AMirrorActor* Mirror);
+	void ClearInteractableMirror(AMirrorActor* Mirror);
 
 protected:
 	virtual void BeginPlay() override;
@@ -97,6 +101,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+	TSubclassOf<AProjectile> ProjectileClass;
+
 	// ===== 입력 핸들러 =====
 
 	void Move(const FInputActionValue& Value);
@@ -134,6 +141,11 @@ protected:
 	/** 마우스 커서가 가리키는 월드 좌표를 캐릭터 높이의 평면과 교차시켜 조준 방향을 구함 */
 	void UpdateMouseAimDirection();
 
+	//무기 빨간색
 	UPROPERTY(BlueprintReadOnly, Category = "Weapon")
 	ELumenWeaponColor CurrentColor = ELumenWeaponColor::Red;
+
+	//거울 회전
+	UPROPERTY()
+	TObjectPtr<AMirrorActor> CurrentInteractableMirror;
 };
