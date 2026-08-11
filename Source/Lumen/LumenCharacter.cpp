@@ -9,7 +9,10 @@
 #include "EnhancedInputSubsystems.h"
 #include "Lumen/Reflection/MirrorActor.h"
 #include "Lumen/Reflection/Projectile.h"
-
+#include "Lumen/Public/WeaponDataAsset.h"
+#include "Lumen/Public/HeatComponent.h"
+#include "DrawDebugHelpers.h"
+#include "ShieldActor.h"
 
 ALumenCharacter::ALumenCharacter()
 {
@@ -39,6 +42,11 @@ ALumenCharacter::ALumenCharacter()
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f); // 조준 방향으로 빠르게 스냅
+
+	//과열시스템
+	HeatComponent = CreateDefaultSubobject<UHeatComponent>(TEXT("HeatComponent"));
+	//체력
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ALumenCharacter::BeginPlay()
@@ -60,6 +68,23 @@ void ALumenCharacter::BeginPlay()
 			}
 		}
 	}
+
+	CurrentShieldStamina = MaxShieldStamina;
+	DefaultMaxWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+	
+	if (ShieldActorClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+		ShieldActor = GetWorld()->SpawnActor<AShieldActor>(ShieldActorClass, GetActorLocation(), GetActorRotation(), SpawnParams);
+		if (ShieldActor)
+		{
+			ShieldActor->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+			ShieldActor->SetActorRelativeLocation(FVector(60.f, 0.f, 0.f)); // 캐릭터 앞쪽 (가안 오프셋)
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("BeginPlay End - bIsShieldActive=%d MaxWalkSpeed=%.1f DefaultMaxWalkSpeed=%.1f"),
+		bIsShieldActive, GetCharacterMovement()->MaxWalkSpeed, DefaultMaxWalkSpeed);
 }
 
 void ALumenCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -135,12 +160,26 @@ void ALumenCharacter::Tick(float DeltaTime)
 	{
 		UpdateMouseAimDirection();
 	}
-
-	// 최종 조준 방향으로 캐릭터를 회전 (4-2: 이동 방향이 아니라 조준 방향을 보고 있어야 함)
-	// FVector2D는 Rotation() 멤버가 없으므로 atan2로 직접 Yaw 각도를 구함
+	
 	const float TargetYaw = FMath::RadiansToDegrees(FMath::Atan2(CurrentAimDirection.Y, CurrentAimDirection.X));
 	const FRotator TargetRotation = FRotator(0.f, TargetYaw, 0.f);
-	SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 15.f));
+
+	if (bIsShieldActive)
+	{
+		// 5-4-1: 예측형 가드는 정밀도가 생명 — 지연 없이 즉시 스냅
+		SetActorRotation(TargetRotation);
+		if (ShieldActor)
+		{
+			ShieldActor->UpdateFacingDirection(CurrentAimDirection);
+		}
+	}
+	else
+	{
+		// 사격 중엔 발사 방향이 CurrentAimDirection을 직접 쓰므로, 몸통 회전은 부드러워도 정밀도에 영향 없음
+		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 15.f));
+	}
+
+	UpdateShieldStamina(DeltaTime);
 }
 
 void ALumenCharacter::UpdateMouseAimDirection()
@@ -178,6 +217,10 @@ void ALumenCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D MoveInput = Value.Get<FVector2D>();
 
+	// 임시 로그 추가
+	UE_LOG(LogTemp, Warning, TEXT("Move called - Input=(%.2f,%.2f) MaxWalkSpeed=%.1f bIsShieldActive=%d"),
+		MoveInput.X, MoveInput.Y, GetCharacterMovement()->MaxWalkSpeed, bIsShieldActive);
+
 	// 카메라가 고정 45도 회전이라, 월드 축 그대로 넣으면 화면상 이동 방향과 어긋날 수 있음
 	// 4-1에서 카메라 각도를 실험적으로 확정할 때 이 부분도 같이 체감 확인 필요
 	AddMovementInput(FVector::ForwardVector, MoveInput.Y);
@@ -195,31 +238,45 @@ void ALumenCharacter::AimGamepad(const FInputActionValue& Value)
 	}
 }
 
+//
+UWeaponDataAsset* ALumenCharacter::GetCurrentWeaponData() const
+{
+	if (const UWeaponDataAsset* const* Found = WeaponDataByColor.Find(CurrentColor))
+	{
+		return const_cast<UWeaponDataAsset*>(*Found);
+	}
+	return nullptr;
+}
+
+
 // ===== 아래는 스텁 — 실제 로직은 각 참고 섹션 구현 시점(6-1)에 채움 =====
 
 void ALumenCharacter::StartFire(const FInputActionValue& Value)
 {
-	if (!ProjectileClass) return;
 
-	const FVector Direction = FVector(CurrentAimDirection, 0.f);
-	const FVector DesiredOffset = Direction * 100.f; // 원래 원하던 총구 거리
-	FVector SpawnLocation = GetActorLocation() + DesiredOffset;
+	UE_LOG(LogTemp, Log, TEXT("StartFire"));
 
-	// 사전 검사: 원하는 스폰 위치까지 가는 길에 뭔가 있으면 그 앞으로 당김
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(MuzzleTrace), false, this);
-	FHitResult PreHit;
-	if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), SpawnLocation, ECC_Visibility, Params))
+	if (!ProjectileClass || bIsShieldActive) return; // 5-4-1: 방패 든 동안 사격 차단
+
+	UWeaponDataAsset* Weapon = GetCurrentWeaponData();
+	if (!Weapon) return;
+
+	if (CurrentColor == ELumenWeaponColor::Red)
 	{
-		SpawnLocation = PreHit.ImpactPoint - Direction * 2.f; // 막힌 지점 바로 앞
+		// 자동 연사: 즉시 1발 쏘고, 이후 FireRate 간격으로 반복
+		FireOnce(Weapon);
+		const float Interval = Weapon->FireRate > 0.f ? 1.f / Weapon->FireRate : 0.1f;
+		GetWorldTimerManager().SetTimer(AutoFireTimerHandle, [this, Weapon]()
+			{
+				// 과열되면 TryConsumeHeat이 실패 → FireOnce 내부에서 걸러지고 타이머는 그대로 두되 매번 재시도
+				// (과열 풀리면 자동으로 다시 발사되는 것이 자연스러움 — 트리거를 계속 누르고 있는 상태이므로)
+				FireOnce(Weapon);
+			}, Interval, true);
 	}
-
-	const FRotator SpawnRotation = Direction.Rotation();
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-
-	if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams))
+	else
 	{
-		NewProjectile->InitVelocity(Direction);
+		// 파랑/초록: 반자동, 트리거 1회 = 발사 1세트
+		FireOnce(Weapon);
 	}
 }
 
@@ -227,18 +284,216 @@ void ALumenCharacter::StopFire(const FInputActionValue& Value)
 {
 	// TODO(2주차, 5-1-1): 발사 중단 -> 발열 냉각 시작
 	UE_LOG(LogTemp, Log, TEXT("StopFire"));
+	// 자동연사(빨강) 중이었다면 타이머 정지. 반자동 무기는 애초에 타이머가 없으므로 안전하게 무시됨
+	GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
+
+	// 발열 냉각은 HeatComponent::TickComponent가 발사 여부와 무관하게 항상 진행 중이므로
+	// 여기서 별도로 "냉각 시작"을 트리거할 필요 없음 (TODO 해소)
+}
+
+void ALumenCharacter::FireOnce(UWeaponDataAsset* Weapon)
+{
+	if (!HeatComponent || !HeatComponent->TryConsumeHeat(Weapon))
+	{
+		return; // 과열 중 — 발사 안 됨
+	}
+
+	switch (Weapon->FireMode)
+	{
+	case EWeaponFireMode::Projectile:
+		FireProjectileSet(Weapon);
+		break;
+	case EWeaponFireMode::LineTrace:
+		FireLineTrace(Weapon);
+		break;
+	}
+}
+
+void ALumenCharacter::FireProjectileSet(UWeaponDataAsset* Weapon)
+{
+	const int32 Count = FMath::Max(1, Weapon->PelletCount);
+	const FVector BaseDirection = FVector(CurrentAimDirection, 0.f);
+
+	for (int32 i = 0; i < Count; ++i)
+	{
+		FVector Direction = BaseDirection;
+
+		if (Count > 1)
+		{
+			const float HalfSpread = Weapon->SpreadAngleDegrees * 0.5f;
+			const float Step = Weapon->SpreadAngleDegrees / FMath::Max(1, Count - 1);
+			const float Jitter = FMath::FRandRange(-Weapon->PelletJitterDegrees, Weapon->PelletJitterDegrees);
+			Direction = BaseDirection.RotateAngleAxis(-HalfSpread + Step * i + Jitter, FVector::UpVector);
+		}
+
+		const FVector DesiredOffset = Direction * 100.f;
+		FVector SpawnLocation = GetActorLocation() + DesiredOffset;
+
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(MuzzleTrace), false, this);
+		FHitResult PreHit;
+		if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), SpawnLocation, ECC_Visibility, Params))
+		{
+			SpawnLocation = PreHit.ImpactPoint - Direction * 2.f;
+		}
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+		if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, Direction.Rotation(), SpawnParams))
+		{
+			NewProjectile->InitFromWeaponData(Weapon, Direction); // InitVelocity(Direction) 대신
+		}
+	}
+}
+
+void ALumenCharacter::FireLineTrace(UWeaponDataAsset* Weapon)
+{
+	FVector Direction = FVector(CurrentAimDirection, 0.f).GetSafeNormal();
+	FVector CurrentStart = GetActorLocation() + Direction * 100.f;
+
+	// 증상 1 수정: 거울/벽에 바싹 붙었을 때 총구 위치가 반대편으로 넘어가지 않도록 사전 보정
+	{
+		FCollisionQueryParams MuzzleParams(SCENE_QUERY_STAT(MuzzleTrace), false, this);
+		FHitResult PreHit;
+		if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), CurrentStart, ECC_Visibility, MuzzleParams))
+		{
+			CurrentStart = PreHit.ImpactPoint - Direction * 2.f;
+		}
+	}
+
+	FVector CurrentDir = Direction;
+	float RemainingRange = Weapon->TraceRange;
+	int32 Reflections = 0;
+	AActor* ActorToIgnoreNext = nullptr; // 증상 2 수정: 직전 1개만 무시, 누적 안 함
+
+	while (RemainingRange > 0.f)
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(LineTraceFire), false, this);
+		if (ActorToIgnoreNext)
+		{
+			Params.AddIgnoredActor(ActorToIgnoreNext);
+		}
+
+		const FVector End = CurrentStart + CurrentDir * RemainingRange;
+		FHitResult Hit;
+		const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, CurrentStart, End, ECC_Visibility, Params);
+
+		DrawDebugLine(GetWorld(), CurrentStart, bHit ? Hit.ImpactPoint : End, FColor::Green, false, 1.f, 0, 2.f);
+
+		if (!bHit)
+		{
+			break; // 아무것도 안 맞고 사거리 끝까지 감
+		}
+
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor && HitActor->Implements<UReflective>())
+		{
+			if (Reflections >= Weapon->MaxReflections)
+			{
+				break; // 반사 한도 도달 - 여기서 멈춤
+			}
+
+			IReflective* ReflectiveActor = Cast<IReflective>(HitActor);
+			FVector Normal = ReflectiveActor->GetReflectionNormal(Hit);
+			Normal.Z = 0.f;
+			Normal = Normal.GetSafeNormal();
+
+			if (FVector::DotProduct(CurrentDir, Normal) > 0.f)
+			{
+				break; // 뒷면 - 반사 없이 정지 (AProjectile::HandleHit과 동일 규칙)
+			}
+
+			const float TraveledThisSegment = FVector::Dist(CurrentStart, Hit.ImpactPoint);
+			RemainingRange -= TraveledThisSegment;
+
+			CurrentDir = CurrentDir.MirrorByVector(Normal);
+			CurrentStart = Hit.ImpactPoint + Normal * 2.f; // 재충돌 방지 오프셋
+			Reflections++;
+
+			Params.AddIgnoredActor(HitActor); // 같은 프레임 루프 안이므로 즉시 무시 목록 추가 (Ignore 타이머 불필요)
+		}
+		else
+		{
+			// 벽/적 등 반사 대상 아님 - 여기서 데미지 적용하고 정지 (관통은 보류 상태)
+			// TODO: HitActor에 Weapon->Damage 적용 (데미지 인터페이스는 아직 미구현)
+			break;
+		}
+	}
+}
+
+void ALumenCharacter::UpdateShieldStamina(float DeltaTime)
+{
+	if (bIsShieldActive)
+	{
+		CurrentShieldStamina = FMath::Max(0.f, CurrentShieldStamina - ShieldDrainRate * DeltaTime);
+
+		if (CurrentShieldStamina <= 0.f && !bShieldOnForcedCooldown)
+		{
+			// 완전 소진 - 강제로 방패 내림 + 강제 쿨타임 시작 (5-4-1)
+			bShieldOnForcedCooldown = true;
+			ShieldForcedCooldownTimer = ShieldOverchargeForcedCooldown;
+			bIsShieldActive = false;
+
+			if (ShieldActor)
+			{
+				ShieldActor->SetShieldActive(false);
+			}
+			GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
+		}
+	}
+	else if (bShieldOnForcedCooldown)
+	{
+		// 강제 쿨타임 중엔 재사용 자체가 막혀있어야 함 (StartShield에서 체크)
+		ShieldForcedCooldownTimer -= DeltaTime;
+		if (ShieldForcedCooldownTimer <= 0.f)
+		{
+			bShieldOnForcedCooldown = false;
+		}
+		// 쿨타임 중에도 게이지는 회복 (HeatComponent와 동일 원칙 - 재사용 시점만 강제로 늦춤)
+		CurrentShieldStamina = FMath::Min(MaxShieldStamina, CurrentShieldStamina + ShieldRecoveryRate * DeltaTime);
+	}
+	else
+	{
+		// 평상시 - 안 쓰는 동안 자연 회복
+		CurrentShieldStamina = FMath::Min(MaxShieldStamina, CurrentShieldStamina + ShieldRecoveryRate * DeltaTime);
+	}
 }
 
 void ALumenCharacter::StartShield(const FInputActionValue& Value)
 {
 	// TODO(3주차, 5-4/5-4-1): 방패 들기 시작, 게이지 소모 시작
 	UE_LOG(LogTemp, Log, TEXT("StartShield"));
+	// 강제 쿨타임 중이거나 게이지가 없으면 못 듦
+	if (bShieldOnForcedCooldown || CurrentShieldStamina <= 0.f)
+	{
+		return;
+	}
+
+	// 4-2: 방패 든 동안 사격 차단 - 자동연사 중이었다면 정지
+	GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
+
+	bIsShieldActive = true;
+
+	if (ShieldActor)
+	{
+		ShieldActor->SetShieldActive(true);
+	}
+
+	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed * ShieldMoveSpeedMultiplier; // 5-2-1: 이동 허용(감속)
 }
 
 void ALumenCharacter::StopShield(const FInputActionValue& Value)
 {
 	// TODO(3주차, 5-4-1): 방패 내리기, 게이지 회복 시작
 	UE_LOG(LogTemp, Log, TEXT("StopShield"));
+
+	bIsShieldActive = false;
+
+	if (ShieldActor)
+	{
+		ShieldActor->SetShieldActive(false);
+	}
+
+	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
 }
 
 void ALumenCharacter::Dash(const FInputActionValue& Value)
@@ -286,3 +541,4 @@ void ALumenCharacter::Interact(const FInputActionValue& Value)
 		CurrentInteractableMirror->RotateStep();
 	}
 }
+

@@ -1,16 +1,12 @@
-// LumenCharacter.h
-// 4-1(고정 아이소메트릭 카메라) + 4-2/4-2-1(Enhanced Input) 1주차 범위 구현
-//
-// 주의: 아래 LUMEN_API 매크로는 플레이스홀더입니다.
-// 본인 프로젝트가 UE 템플릿으로 이미 만들어둔 캐릭터 클래스(예: ProjectLumenCharacter.h)를 열어보면
-// 맨 위에 있는 실제 매크로 이름(예: PROJECTLUMEN_API)을 확인할 수 있습니다. 그 이름으로 바꿔서 쓰세요.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "HealthComponent.h"
 #include "LumenCharacter.generated.h"
+
 
 class USpringArmComponent;
 class UCameraComponent;
@@ -18,11 +14,10 @@ class UInputMappingContext;
 class UInputAction;
 class AProjectile;
 class AMirrorActor;
+class UHeatComponent;
+class UWeaponDataAsset;
+class AShieldActor;
 
-/**
- * 색 전환에 쓰이는 색상 enum (5-7 참고)
- * 실제 무기 데이터(5-1)는 아직 구현 전이라, 지금은 "어떤 색을 선택했는가" 상태만 들고 있음
- */
 UENUM(BlueprintType)
 enum class ELumenWeaponColor : uint8
 {
@@ -148,4 +143,58 @@ protected:
 	//거울 회전
 	UPROPERTY()
 	TObjectPtr<AMirrorActor> CurrentInteractableMirror;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UHeatComponent> HeatComponent;
+
+	// 색 -> 무기 데이터 매핑 (에디터에서 3개 DA_Weapon_*_TEMP 할당)
+	UPROPERTY(EditAnywhere, Category = "Weapon")
+	TMap<ELumenWeaponColor, UWeaponDataAsset*> WeaponDataByColor;
+
+	// 5-4-1: 방패 든 동안 사격 차단용 — 방패 구현 단계에서 실제로 세팅됨
+	UPROPERTY(BlueprintReadOnly, Category = "Shield")
+	bool bIsShieldActive = false;
+
+	//체력
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+	UHealthComponent* HealthComponent;
+
+	UPROPERTY(EditAnywhere, Category = "Shield")
+	TSubclassOf<AShieldActor> ShieldActorClass; // 에디터에서 BP_Shield 할당
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shield")
+	TObjectPtr<AShieldActor> ShieldActor;
+
+	// 방패 스태미너 게이지 (5-4-1: 홀드 중 소모, 미사용 시 회복, 완전 소진 시 강제 쿨타임)
+	UPROPERTY(EditDefaultsOnly, Category = "Shield")
+	float MaxShieldStamina = 100.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Shield")
+	float ShieldDrainRate = 25.f; // 초당 소모량 (가안)
+
+	UPROPERTY(EditDefaultsOnly, Category = "Shield")
+	float ShieldRecoveryRate = 20.f; // 초당 회복량 (가안)
+
+	UPROPERTY(EditDefaultsOnly, Category = "Shield")
+	float ShieldOverchargeForcedCooldown = 1.5f; // 완전 소진 시 강제 쿨타임 (1~2초 범위, 가안)
+
+	UPROPERTY(EditDefaultsOnly, Category = "Shield")
+	float ShieldMoveSpeedMultiplier = 0.5f; // 5-2-1: 방패 사용 중 이동 허용(감속)
+
+
+private:
+	FTimerHandle AutoFireTimerHandle;
+
+	UWeaponDataAsset* GetCurrentWeaponData() const;
+	void FireOnce(UWeaponDataAsset* Weapon);          // 발열 체크 + 실제 발사 진입점
+	void FireProjectileSet(UWeaponDataAsset* Weapon); // 빨강(1발)/파랑(펠릿 다발) 공용
+	void FireLineTrace(UWeaponDataAsset* Weapon);     // 초록 — TODO(3주차 후반, 관통 로직은 보류)
+
+	//쉴드
+	float CurrentShieldStamina = 0.f;
+	bool bShieldOnForcedCooldown = false;
+	float ShieldForcedCooldownTimer = 0.f;
+	float DefaultMaxWalkSpeed = 0.f; // 방패 해제 시 되돌릴 원래 속도
+
+	void UpdateShieldStamina(float DeltaTime); // Tick에서 호출
 };

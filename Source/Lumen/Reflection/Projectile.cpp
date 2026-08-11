@@ -3,9 +3,11 @@
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "DrawDebugHelpers.h"
+#include "WeaponDataAsset.h"
 #include "Reflective.h"
+#include "Kismet/GameplayStatics.h" // 신규 추가
 
-static TAutoConsoleVariable<bool> CVarShowReflectionDebug(
+TAutoConsoleVariable<bool> CVarShowReflectionDebug(
 	TEXT("ShowReflectionDebug"),
 	false,
 	TEXT("반사 입사선/반사선을 디버그로 표시"),
@@ -70,12 +72,29 @@ void AProjectile::Tick(float DeltaTime)
 
 	if (bHit)
 	{
+		DistanceTraveled += FVector::Dist(StartLocation, Hit.ImpactPoint); // 실제 맞은 지점까지만 누적
 		HandleHit(Hit);
 	}
 	else
 	{
+		DistanceTraveled += FVector::Dist(StartLocation, EndLocation);
 		SetActorLocation(EndLocation);
 	}
+
+}
+
+void AProjectile::InitFromWeaponData(UWeaponDataAsset* WeaponData, const FVector& Direction)
+{
+	if (!WeaponData) return;
+
+	Damage = WeaponData->Damage;
+	MaxReflections = WeaponData->MaxReflections;
+	FalloffStartRange = WeaponData->FalloffStartRange;
+	FalloffEndRange = WeaponData->FalloffEndRange;
+	MinDamageMultiplier = WeaponData->MinDamageMultiplier;
+
+	Speed = WeaponData->ProjectileSpeed; // ← 먼저 Speed 멤버 자체를 갱신
+	InitVelocity(Direction);            // ← 순수 방향만 넘기고, 내부에서 갱신된 Speed를 사용하게 함
 }
 
 void AProjectile::HandleHit(const FHitResult& Hit)
@@ -84,6 +103,19 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 
 	if (!OtherActor || !OtherActor->Implements<UReflective>())
 	{
+		if (OtherActor)
+		{
+			const float FinalDamage = Damage * CalculateFalloffMultiplier();
+
+			AController* InstigatorController = nullptr;
+			if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+			{
+				InstigatorController = OwnerPawn->GetController();
+			}
+
+			UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, InstigatorController, this, nullptr);
+		}
+
 		// 반사 대상 아님(벽, 캐릭터 등) → 그 자리에서 정지
 		SetActorLocation(Hit.ImpactPoint);
 		Velocity = FVector::ZeroVector;
@@ -142,4 +174,26 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 
 	UE_LOG(LogTemp, Warning, TEXT("Reflected! Incident=%s Normal=%s NewDir=%s"),
 		*IncidentDir.ToString(), *SurfaceNormal.ToString(), *ReflectedDir.ToString());
+}
+
+float AProjectile::CalculateFalloffMultiplier() const
+{
+	// FalloffEndRange <= FalloffStartRange면 감쇄 미설정 상태(빨강/초록 기본값 0/0) → 항상 100%
+	if (FalloffEndRange <= FalloffStartRange)
+	{
+		return 1.f;
+	}
+
+	if (DistanceTraveled <= FalloffStartRange)
+	{
+		return 1.f;
+	}
+
+	if (DistanceTraveled >= FalloffEndRange)
+	{
+		return MinDamageMultiplier;
+	}
+
+	const float Alpha = (DistanceTraveled - FalloffStartRange) / (FalloffEndRange - FalloffStartRange);
+	return FMath::Lerp(1.f, MinDamageMultiplier, Alpha);
 }
