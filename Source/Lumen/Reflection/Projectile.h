@@ -76,4 +76,7 @@ protected:
 	TWeakObjectPtr<AActor> LastReflectedActor;
 
 	float IgnoreLastActorTimer = 0.f;
+
+	//반사시 데미지 적용
+	UPROPERTY() AController* DamageInstigatorController;
 };

@@ -30,10 +30,12 @@ void ALightEmitterActor::BeginPlay()
 
 void ALightEmitterActor::Fire()
 {
+	//테스트 로그
+	/*
 	UE_LOG(LogTemp, Warning, TEXT("LightEmitterActor::Fire called. WeaponData=%s ProjectileClass=%s"),
 		WeaponData ? TEXT("OK") : TEXT("NULL"),
 		ProjectileClass ? TEXT("OK") : TEXT("NULL"));
-
+	*/
 	if (!WeaponData || !ProjectileClass) return;
 
 	const FVector BaseDirection = GetActorForwardVector();

@@ -18,6 +18,7 @@ void UHeatComponent::BeginPlay()
 // 헤더에 UFUNCTION() 붙여서 임시로 추가
 void UHeatComponent::DebugPrintHeat(float Ratio)
 {
+    //테스트 로그
     GEngine->AddOnScreenDebugMessage(-1, 0.1f, FColor::Yellow, FString::Printf(TEXT("Heat: %.0f%%"), Ratio * 100.f));
 }
 

@@ -136,6 +136,10 @@ protected:
 	/** 마우스 커서가 가리키는 월드 좌표를 캐릭터 높이의 평면과 교차시켜 조준 방향을 구함 */
 	void UpdateMouseAimDirection();
 
+	//체력
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+	UHealthComponent* HealthComponent;
+
 	//무기 빨간색
 	UPROPERTY(BlueprintReadOnly, Category = "Weapon")
 	ELumenWeaponColor CurrentColor = ELumenWeaponColor::Red;
@@ -154,10 +158,6 @@ protected:
 	// 5-4-1: 방패 든 동안 사격 차단용 — 방패 구현 단계에서 실제로 세팅됨
 	UPROPERTY(BlueprintReadOnly, Category = "Shield")
 	bool bIsShieldActive = false;
-
-	//체력
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
-	UHealthComponent* HealthComponent;
 
 	UPROPERTY(EditAnywhere, Category = "Shield")
 	TSubclassOf<AShieldActor> ShieldActorClass; // 에디터에서 BP_Shield 할당
@@ -197,4 +197,22 @@ private:
 	float DefaultMaxWalkSpeed = 0.f; // 방패 해제 시 되돌릴 원래 속도
 
 	void UpdateShieldStamina(float DeltaTime); // Tick에서 호출
+	void UpdateDash(float DeltaTime); //대쉬
+	void StartDash();
+	void EndDash();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Dash")
+	float DashDistance = 600.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Dash")
+	float DashDuration = 0.15f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Dash")
+	float DashCooldown = 1.2f;
+
+	FVector LastMoveDirection = FVector::ForwardVector;
+	bool bIsDashing = false;
+	bool bDashOnCooldown = false;
+	FTimerHandle DashDurationTimerHandle;
+	FTimerHandle DashCooldownTimerHandle;
 };

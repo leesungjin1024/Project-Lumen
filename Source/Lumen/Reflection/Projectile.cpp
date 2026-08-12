@@ -6,6 +6,7 @@
 #include "WeaponDataAsset.h"
 #include "Reflective.h"
 #include "Kismet/GameplayStatics.h" // 신규 추가
+#include "ShieldActor.h"
 
 TAutoConsoleVariable<bool> CVarShowReflectionDebug(
 	TEXT("ShowReflectionDebug"),
@@ -31,6 +32,16 @@ AProjectile::AProjectile()
 void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
+	if (AActor* OwnerActor = GetOwner())
+	{
+		if (APawn* OwnerPawn = Cast<APawn>(OwnerActor))
+		{
+			DamageInstigatorController = OwnerPawn->GetController();
+		}
+		// Pawn이 아니면(ALightEmitterActor 등) Controller가 없으니 Instigator는 비워두고,
+		// 대신 DamageCauserActor 등으로 "누가 쐈는지"를 추적할 별도 경로가 필요할 수 있음
+	}
+
 }
 
 void AProjectile::InitVelocity(const FVector& Direction)
@@ -106,14 +117,7 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 		if (OtherActor)
 		{
 			const float FinalDamage = Damage * CalculateFalloffMultiplier();
-
-			AController* InstigatorController = nullptr;
-			if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
-			{
-				InstigatorController = OwnerPawn->GetController();
-			}
-
-			UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, InstigatorController, this, nullptr);
+			UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, DamageInstigatorController, this, nullptr);
 		}
 
 		// 반사 대상 아님(벽, 캐릭터 등) → 그 자리에서 정지
@@ -130,6 +134,15 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 	}
 
 	IReflective* ReflectiveActor = Cast<IReflective>(OtherActor);
+
+	if (AShieldActor* Shield = Cast<AShieldActor>(OtherActor))   // HitActor 아니라 OtherActor
+	{
+		if (APawn* OwningPawn = Cast<APawn>(Shield->GetOwner()))
+		{
+			DamageInstigatorController = OwningPawn->GetController();
+		}
+	}
+
 	FVector SurfaceNormal = ReflectiveActor->GetReflectionNormal(Hit);
 	SurfaceNormal.Z = 0.f;
 	SurfaceNormal = SurfaceNormal.GetSafeNormal();

@@ -30,6 +30,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	bool IsDead() const { return bIsDead; }
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void SetInvulnerable(bool bNewInvulnerable) { bIsInvulnerable = bNewInvulnerable; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -48,4 +51,5 @@ protected:
 private:
 	float CurrentHealth = 0.f;
 	bool bIsDead = false;
+	bool bIsInvulnerable = false; // ← 추가, 대쉬(4-2) 무적 프레임용
 };

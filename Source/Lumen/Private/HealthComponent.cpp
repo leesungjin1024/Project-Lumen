@@ -25,10 +25,19 @@ void UHealthComponent::BeginPlay()
 void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
 	AController* InstigatedBy, AActor* DamageCauser)
 {
-	if (bIsDead || Damage <= 0.f)
+	UE_LOG(LogTemp, Warning, TEXT("[Damage Check] bIsDead=%d Damage=%.1f bIsInvulnerable=%d"),
+		bIsDead, Damage, bIsInvulnerable);
+
+	if (bIsDead || Damage <= 0.f || bIsInvulnerable)   // ← bIsInvulnerable 추가
 	{
 		return;
 	}
+
+	// 검증용 로그
+	UE_LOG(LogTemp, Warning, TEXT("[Damage] Target=%s Damage=%.1f Instigator=%s Causer=%s"),
+		*GetOwner()->GetName(), Damage,
+		InstigatedBy ? *InstigatedBy->GetName() : TEXT("NULL"),
+		DamageCauser ? *DamageCauser->GetName() : TEXT("NULL"));
 
 	CurrentHealth = FMath::Max(0.f, CurrentHealth - Damage);
 	OnHealthChanged.Broadcast(GetHealthRatio(), Damage);
@@ -45,6 +54,7 @@ void UHealthComponent::DebugPrintHealth(float Ratio, float DamageAmount)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red,
 		FString::Printf(TEXT("Took %.1f dmg | HP: %.0f%%"), DamageAmount, Ratio * 100.f));
+
 }
 
 void UHealthComponent::DebugPrintDeath()

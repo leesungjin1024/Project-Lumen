@@ -126,7 +126,7 @@ void ALumenCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	}
 	if (DashAction)
 	{
-		EnhancedInput->BindAction(DashAction, ETriggerEvent::Triggered, this, &ALumenCharacter::Dash);
+		EnhancedInput->BindAction(DashAction, ETriggerEvent::Started, this, &ALumenCharacter::Dash);
 	}
 	if (SelectRedAction)
 	{
@@ -160,7 +160,11 @@ void ALumenCharacter::Tick(float DeltaTime)
 	{
 		UpdateMouseAimDirection();
 	}
-	
+
+	if (bIsDashing)
+	{
+		UpdateDash(DeltaTime);
+	}
 	const float TargetYaw = FMath::RadiansToDegrees(FMath::Atan2(CurrentAimDirection.Y, CurrentAimDirection.X));
 	const FRotator TargetRotation = FRotator(0.f, TargetYaw, 0.f);
 
@@ -215,16 +219,25 @@ void ALumenCharacter::UpdateMouseAimDirection()
 
 void ALumenCharacter::Move(const FInputActionValue& Value)
 {
+	if (bIsDashing)
+	{
+		return; // 대쉬 중엔 CharacterMovementComponent가 별도로 속도를 계산하지 못하게 완전히 차단
+	}
 	const FVector2D MoveInput = Value.Get<FVector2D>();
 
-	// 임시 로그 추가
+	// 테스트 로그 추가
+ /*
 	UE_LOG(LogTemp, Warning, TEXT("Move called - Input=(%.2f,%.2f) MaxWalkSpeed=%.1f bIsShieldActive=%d"),
 		MoveInput.X, MoveInput.Y, GetCharacterMovement()->MaxWalkSpeed, bIsShieldActive);
-
+*/
 	// 카메라가 고정 45도 회전이라, 월드 축 그대로 넣으면 화면상 이동 방향과 어긋날 수 있음
 	// 4-1에서 카메라 각도를 실험적으로 확정할 때 이 부분도 같이 체감 확인 필요
 	AddMovementInput(FVector::ForwardVector, MoveInput.Y);
 	AddMovementInput(FVector::RightVector, MoveInput.X);
+	if (!MoveInput.IsNearlyZero())
+	{
+		LastMoveDirection = (FVector::ForwardVector * MoveInput.Y + FVector::RightVector * MoveInput.X).GetSafeNormal();
+	}
 }
 
 void ALumenCharacter::AimGamepad(const FInputActionValue& Value)
@@ -500,8 +513,51 @@ void ALumenCharacter::Dash(const FInputActionValue& Value)
 {
 	// TODO(3주차, 4-2/5-8): 대쉬 구현 (우선순위 가장 낮은 항목, 6-1 리스크 참고)
 	UE_LOG(LogTemp, Log, TEXT("Dash"));
+	StartDash();
+
+}
+void ALumenCharacter::UpdateDash(float DeltaTime)
+{
+	const FVector Step = LastMoveDirection * (DashDistance / DashDuration) * DeltaTime;
+	FHitResult Hit;
+	AddActorWorldOffset(Step, /*bSweep=*/true, &Hit); // 스윕 켜서 벽 뚫고 나가지 않게
 }
 
+
+void ALumenCharacter::StartDash()
+{
+	if (bIsDashing || bDashOnCooldown || bIsShieldActive)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Dash] Invulnerable ON at %.2f"), GetWorld()->GetTimeSeconds());
+
+	bIsDashing = true;
+	GetCharacterMovement()->Velocity = FVector::ZeroVector; // ← 추가: 대쉬 진입 시 관성 제거
+
+	if (HealthComponent)
+	{
+		HealthComponent->SetInvulnerable(true);
+	}
+
+	GetWorldTimerManager().SetTimer(DashDurationTimerHandle, this, &ALumenCharacter::EndDash, DashDuration, false);
+}
+
+void ALumenCharacter::EndDash()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Dash] Invulnerable OFF at %.2f"), GetWorld()->GetTimeSeconds());
+
+	bIsDashing = false;
+	bDashOnCooldown = true;
+
+	if (HealthComponent)
+	{
+		HealthComponent->SetInvulnerable(false);
+	}
+
+	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, [this]() { bDashOnCooldown = false; }, DashCooldown, false);
+}
 void ALumenCharacter::SelectRed(const FInputActionValue& Value) { SelectColor(ELumenWeaponColor::Red); }
 void ALumenCharacter::SelectBlue(const FInputActionValue& Value) { SelectColor(ELumenWeaponColor::Blue); }
 void ALumenCharacter::SelectGreen(const FInputActionValue& Value) { SelectColor(ELumenWeaponColor::Green); }
