@@ -12,7 +12,10 @@
 #include "Lumen/Public/WeaponDataAsset.h"
 #include "Lumen/Public/HeatComponent.h"
 #include "DrawDebugHelpers.h"
+#include "LumenCollisionChannels.h" 
+#include "Kismet/GameplayStatics.h"
 #include "ShieldActor.h"
+#include "LumenCombatLibrary.h"
 
 ALumenCharacter::ALumenCharacter()
 {
@@ -361,76 +364,17 @@ void ALumenCharacter::FireProjectileSet(UWeaponDataAsset* Weapon)
 void ALumenCharacter::FireLineTrace(UWeaponDataAsset* Weapon)
 {
 	FVector Direction = FVector(CurrentAimDirection, 0.f).GetSafeNormal();
-	FVector CurrentStart = GetActorLocation() + Direction * 100.f;
+	const FVector StartLocation = GetActorLocation() + Direction * 100.f;
 
-	// 증상 1 수정: 거울/벽에 바싹 붙었을 때 총구 위치가 반대편으로 넘어가지 않도록 사전 보정
-	{
-		FCollisionQueryParams MuzzleParams(SCENE_QUERY_STAT(MuzzleTrace), false, this);
-		FHitResult PreHit;
-		if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), CurrentStart, ECC_Visibility, MuzzleParams))
-		{
-			CurrentStart = PreHit.ImpactPoint - Direction * 2.f;
-		}
-	}
-
-	FVector CurrentDir = Direction;
-	float RemainingRange = Weapon->TraceRange;
-	int32 Reflections = 0;
-	AActor* ActorToIgnoreNext = nullptr; // 증상 2 수정: 직전 1개만 무시, 누적 안 함
-
-	while (RemainingRange > 0.f)
-	{
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(LineTraceFire), false, this);
-		if (ActorToIgnoreNext)
-		{
-			Params.AddIgnoredActor(ActorToIgnoreNext);
-		}
-
-		const FVector End = CurrentStart + CurrentDir * RemainingRange;
-		FHitResult Hit;
-		const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, CurrentStart, End, ECC_Visibility, Params);
-
-		DrawDebugLine(GetWorld(), CurrentStart, bHit ? Hit.ImpactPoint : End, FColor::Green, false, 1.f, 0, 2.f);
-
-		if (!bHit)
-		{
-			break; // 아무것도 안 맞고 사거리 끝까지 감
-		}
-
-		AActor* HitActor = Hit.GetActor();
-		if (HitActor && HitActor->Implements<UReflective>())
-		{
-			if (Reflections >= Weapon->MaxReflections)
-			{
-				break; // 반사 한도 도달 - 여기서 멈춤
-			}
-
-			IReflective* ReflectiveActor = Cast<IReflective>(HitActor);
-			FVector Normal = ReflectiveActor->GetReflectionNormal(Hit);
-			Normal.Z = 0.f;
-			Normal = Normal.GetSafeNormal();
-
-			if (FVector::DotProduct(CurrentDir, Normal) > 0.f)
-			{
-				break; // 뒷면 - 반사 없이 정지 (AProjectile::HandleHit과 동일 규칙)
-			}
-
-			const float TraveledThisSegment = FVector::Dist(CurrentStart, Hit.ImpactPoint);
-			RemainingRange -= TraveledThisSegment;
-
-			CurrentDir = CurrentDir.MirrorByVector(Normal);
-			CurrentStart = Hit.ImpactPoint + Normal * 2.f; // 재충돌 방지 오프셋
-			Reflections++;
-
-			Params.AddIgnoredActor(HitActor); // 같은 프레임 루프 안이므로 즉시 무시 목록 추가 (Ignore 타이머 불필요)
-		}
-		else
-		{
-			// 벽/적 등 반사 대상 아님 - 여기서 데미지 적용하고 정지 (관통은 보류 상태)
-			// TODO: HitActor에 Weapon->Damage 적용 (데미지 인터페이스는 아직 미구현)
-			break;
-		}
-	}
+	ULumenCombatLibrary::FireReflectiveLineTrace(
+		this,
+		this,
+		StartLocation,
+		Direction,
+		Weapon,
+		GetController(),
+		this,
+		nullptr); // 반사 스파크 VFX — 필요하면 아래처럼 멤버 추가해서 에디터에서 할당}
 }
 
 void ALumenCharacter::UpdateShieldStamina(float DeltaTime)

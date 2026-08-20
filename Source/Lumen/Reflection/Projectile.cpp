@@ -7,6 +7,7 @@
 #include "Reflective.h"
 #include "Kismet/GameplayStatics.h" // 신규 추가
 #include "ShieldActor.h"
+#include "LumenCollisionChannels.h"  
 
 TAutoConsoleVariable<bool> CVarShowReflectionDebug(
 	TEXT("ShowReflectionDebug"),
@@ -32,16 +33,22 @@ AProjectile::AProjectile()
 void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
-	if (AActor* OwnerActor = GetOwner())
+
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 	{
-		if (APawn* OwnerPawn = Cast<APawn>(OwnerActor))
-		{
-			DamageInstigatorController = OwnerPawn->GetController();
-		}
-		// Pawn이 아니면(ALightEmitterActor 등) Controller가 없으니 Instigator는 비워두고,
-		// 대신 DamageCauserActor 등으로 "누가 쐈는지"를 추적할 별도 경로가 필요할 수 있음
+		const bool bIsPlayerOwned = OwnerPawn->IsPlayerControlled();
+		CollisionComp->SetCollisionObjectType(
+			bIsPlayerOwned ? ECC_PlayerProjectile : ECC_EnemyProjectile);
+	}
+	else
+	{
+		// ALightEmitterActor처럼 Pawn이 아닌 소유자 — 4주차 문서에 남아있던 미결정 사항과 동일 이슈
+		CollisionComp->SetCollisionObjectType(ECC_PlayerProjectile); // 임시 기본값, 결정 필요
 	}
 
+	// 기존 로직 유지 — 채널 분리가 이걸 대체하지 않음
+	IgnoreLastActorTimer = 0.05f;
+	LastReflectedActor = GetOwner();
 }
 
 void AProjectile::InitVelocity(const FVector& Direction)
@@ -79,7 +86,7 @@ void AProjectile::Tick(float DeltaTime)
 	FCollisionShape SphereShape = FCollisionShape::MakeSphere(CollisionComp->GetScaledSphereRadius());
 	FHitResult Hit;
 	const bool bHit = GetWorld()->SweepSingleByChannel(
-		Hit, StartLocation, EndLocation, FQuat::Identity, ECC_Visibility, SphereShape, Params);
+		Hit, StartLocation, EndLocation, FQuat::Identity, ECC_ProjectileTrace, SphereShape, Params);
 
 	if (bHit)
 	{
@@ -111,8 +118,10 @@ void AProjectile::InitFromWeaponData(UWeaponDataAsset* WeaponData, const FVector
 void AProjectile::HandleHit(const FHitResult& Hit)
 {
 	AActor* OtherActor = Hit.GetActor();
+	const bool bIsReflectiveChannel =
+		Hit.Component.IsValid() && Hit.Component->GetCollisionObjectType() == ECC_Reflective;
 
-	if (!OtherActor || !OtherActor->Implements<UReflective>())
+	if (!OtherActor || !bIsReflectiveChannel)
 	{
 		if (OtherActor)
 		{
@@ -120,7 +129,6 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 			UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, DamageInstigatorController, this, nullptr);
 		}
 
-		// 반사 대상 아님(벽, 캐릭터 등) → 그 자리에서 정지
 		SetActorLocation(Hit.ImpactPoint);
 		Velocity = FVector::ZeroVector;
 		bStopped = true;
@@ -134,7 +142,8 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 	}
 
 	IReflective* ReflectiveActor = Cast<IReflective>(OtherActor);
-
+	checkf(ReflectiveActor, TEXT("Reflective 채널인데 IReflective 미구현: %s"), *OtherActor->GetName());
+	
 	if (AShieldActor* Shield = Cast<AShieldActor>(OtherActor))   // HitActor 아니라 OtherActor
 	{
 		if (APawn* OwningPawn = Cast<APawn>(Shield->GetOwner()))

@@ -1,5 +1,6 @@
 #include "HeatComponent.h"
 #include "WeaponDataAsset.h"
+#include "DrawDebugHelpers.h"
 
 UHeatComponent::UHeatComponent()
 {
@@ -12,14 +13,14 @@ void UHeatComponent::BeginPlay()
     CurrentHeat = 0.f;
     State = EHeatState::Ready;
     // 임시 테스트용 - 확인 후 삭제
-    OnHeatChanged.AddDynamic(this, &UHeatComponent::DebugPrintHeat);
+    //OnHeatChanged.AddDynamic(this, &UHeatComponent::DebugPrintHeat);
 }
 
 // 헤더에 UFUNCTION() 붙여서 임시로 추가
 void UHeatComponent::DebugPrintHeat(float Ratio)
 {
     //테스트 로그
-    GEngine->AddOnScreenDebugMessage(-1, 0.1f, FColor::Yellow, FString::Printf(TEXT("Heat: %.0f%%"), Ratio * 100.f));
+    //GEngine->AddOnScreenDebugMessage(-1, 0.1f, FColor::Yellow, FString::Printf(TEXT("Heat: %.0f%%"), Ratio * 100.f));
 }
 
 bool UHeatComponent::TryConsumeHeat(const UWeaponDataAsset* WeaponData)
@@ -68,4 +69,27 @@ void UHeatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
     const float CoolRate = LastUsedWeapon ? LastUsedWeapon->CooldownRate : 20.f;
     CurrentHeat = FMath::Max(0.f, CurrentHeat - CoolRate * DeltaTime);
     OnHeatChanged.Broadcast(GetHeatRatio());
+
+#if !UE_BUILD_SHIPPING
+    if (AActor* Owner = GetOwner())
+    {
+        const FString DebugText = FString::Printf(
+            TEXT("%s\nHeat: %.1f / %.1f%s"),
+            *Owner->GetName(),
+            CurrentHeat,
+            MaxHeat,
+            IsOverheated() ? TEXT(" [OVERHEATED]") : TEXT("")
+        );
+        const FColor TextColor = IsOverheated() ? FColor::Red : FColor::Green;
+        DrawDebugString(
+            GetWorld(),
+            Owner->GetActorLocation() + FVector(0, 0, 120.f),  // 머리 위
+            DebugText,
+            nullptr,
+            TextColor,
+            0.f,  // 이 틱에만 그리고 매 프레임 새로 그림 (지속시간 0 = 즉시, 매 틱 갱신)
+            true
+        );
+    }
+#endif
 }

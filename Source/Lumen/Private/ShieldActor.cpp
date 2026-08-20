@@ -1,25 +1,25 @@
 #include "ShieldActor.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "LumenCollisionChannels.h" 
 
 AShieldActor::AShieldActor()
 {
-	PrimaryActorTick.bCanEverTick = false; // 회전은 캐릭터가 호출해서 갱신 (자체 Tick 불필요)
-
+	PrimaryActorTick.bCanEverTick = false;
 	ShieldCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("ShieldCollision"));
 	ShieldCollision->SetBoxExtent(ShieldBoxExtent);
 	RootComponent = ShieldCollision;
-
-	// 처음엔 방패 안 든 상태 - 콜리전 꺼둠 (반사 판정에 안 걸리게)
 	ShieldCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	// 임시 시각 표현 - 평평한 판. 실제 메시(에디터에서 큐브/플레인 할당)는 콜리전과 분리돼 있어
-	// 나중에 메시만 교체해도 콜리전 크기·두께에 영향 없음 (5-2-1 원칙과 일치)
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
 	MeshComp->SetupAttachment(RootComponent);
-	MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 시각 전용, 판정은 ShieldCollision만
-	MeshComp->SetVisibility(false); // 추가 - 시작 시 안 보이게
-	ShieldCollision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block); // 추가 필요
+	MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MeshComp->SetVisibility(false);
+
+	// 채널 분리 설정 — 변수명 통일, Block 줄 삭제
+	ShieldCollision->SetCollisionObjectType(ECC_Reflective);
+	ShieldCollision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore); // 4주차 LOS 버그 해결
+	ShieldCollision->SetCollisionResponseToChannel(ECC_ProjectileTrace, ECR_Block);
 }
 
 FVector AShieldActor::GetReflectionNormal(const FHitResult& Hit) const

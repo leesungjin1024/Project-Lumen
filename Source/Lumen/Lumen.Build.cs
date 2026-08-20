@@ -8,6 +8,13 @@ public class Lumen : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara" });
+		PublicDependencyModuleNames.AddRange(new string[] { 
+			"Core", "CoreUObject", "Engine", "InputCore", 
+			"EnhancedInput", 
+			"Niagara" ,
+            "AIModule",        // ← 추가: BehaviorTree, BTTaskNode, BTService, BlackboardComponent, AAIController
+            "GameplayTasks"    // ← 추가: BehaviorTreeComponent가 GameplayTasksComponent를 상속
+		
+		});
 	}
 }

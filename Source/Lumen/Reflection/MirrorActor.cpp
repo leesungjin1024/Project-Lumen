@@ -4,6 +4,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
 #include "Lumen/LumenCharacter.h"
+#include "LumenCollisionChannels.h" 
 
 AMirrorActor::AMirrorActor()
 {
@@ -13,6 +14,10 @@ AMirrorActor::AMirrorActor()
 
 	CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionComp->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+
+	CollisionComp->SetCollisionObjectType(ECC_Reflective);
+	CollisionComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore); // AI LOS 트레이스는 그대로 통과
+	CollisionComp->SetCollisionResponseToChannel(ECC_ProjectileTrace, ECR_Block);
 
 	RootComponent = CollisionComp;
 
@@ -26,6 +31,7 @@ AMirrorActor::AMirrorActor()
 	InteractionZone->SetSphereRadius(250.f);
 	InteractionZone->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	InteractionZone->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	InteractionZone->SetCollisionResponseToChannel(ECC_ProjectileTrace, ECR_Ignore); // 추가 — 발사체는 이 구체를 완전히 무시
 }
 
 void AMirrorActor::BeginPlay()

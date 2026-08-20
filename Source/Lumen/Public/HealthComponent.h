@@ -35,6 +35,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override; // ← 추가
 
 	UFUNCTION()
 	void HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
@@ -47,6 +48,9 @@ protected:
 
 	UFUNCTION()
 	void DebugPrintDeath();
+
+	// 머리 위 체력 디버그 텍스트 갱신 (몹/캐릭터 구분용)
+	void UpdateHealthDebugDisplay();
 
 private:
 	float CurrentHealth = 0.f;
