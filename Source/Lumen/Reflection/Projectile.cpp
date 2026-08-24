@@ -172,6 +172,13 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 	}
 
 	FVector ReflectedDir = IncidentDir.MirrorByVector(SurfaceNormal);
+
+	// 방패에 맞았으면 근처 적 방향으로 살짝 보정 (에임 어시스트, 거울은 대상에서 자동 제외됨)
+	if (AShieldActor* Shield = Cast<AShieldActor>(OtherActor))
+	{
+		ReflectedDir = Shield->ApplyAimAssist(ReflectedDir, Hit.ImpactPoint);
+	}
+
 	Velocity = ReflectedDir * Velocity.Size();
 
 	// 재충돌 방지 오프셋

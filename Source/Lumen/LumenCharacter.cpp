@@ -16,6 +16,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "ShieldActor.h"
 #include "LumenCombatLibrary.h"
+#include "WeaponDataAsset.h"
+#include "LumenAimLineComponent.h"
 
 ALumenCharacter::ALumenCharacter()
 {
@@ -24,8 +26,6 @@ ALumenCharacter::ALumenCharacter()
 	// ===== 카메라 (4-1: 고정 아이소메트릭) =====
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = CameraArmLength;
-	CameraBoom->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 
 	// 캐릭터가 회전해도 카메라 각도는 절대 안 바뀌게 고정 (고정 아이소메트릭의 핵심)
 	CameraBoom->bInheritPitch = false;
@@ -50,14 +50,24 @@ ALumenCharacter::ALumenCharacter()
 	HeatComponent = CreateDefaultSubobject<UHeatComponent>(TEXT("HeatComponent"));
 	//체력
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	//조준선
+	AimLineComp = CreateDefaultSubobject<ULumenAimLineComponent>(TEXT("AimLineComp"));
 }
 
 void ALumenCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 카메라 세팅 적용 — BeginPlay에서 해야 블루프린트 디테일 패널 값 수정이 실제로 반영됨
+	CameraBoom->TargetArmLength = CameraArmLength;
+	CameraBoom->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
+
+
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
+		PC->bShowMouseCursor = true;
+		PC->DefaultMouseCursor = EMouseCursor::Crosshairs; // 기본 화살표 대신 십자선
+
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
@@ -88,6 +98,8 @@ void ALumenCharacter::BeginPlay()
 	}
 	UE_LOG(LogTemp, Warning, TEXT("BeginPlay End - bIsShieldActive=%d MaxWalkSpeed=%.1f DefaultMaxWalkSpeed=%.1f"),
 		bIsShieldActive, GetCharacterMovement()->MaxWalkSpeed, DefaultMaxWalkSpeed);
+
+	AimLineComp->SetWeaponData(GetCurrentWeaponData());
 }
 
 void ALumenCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -170,6 +182,8 @@ void ALumenCharacter::Tick(float DeltaTime)
 	}
 	const float TargetYaw = FMath::RadiansToDegrees(FMath::Atan2(CurrentAimDirection.Y, CurrentAimDirection.X));
 	const FRotator TargetRotation = FRotator(0.f, TargetYaw, 0.f);
+
+	AimLineComp->SetAimDirection(FVector(CurrentAimDirection, 0.f));
 
 	if (bIsShieldActive)
 	{
@@ -272,7 +286,7 @@ void ALumenCharacter::StartFire(const FInputActionValue& Value)
 
 	UE_LOG(LogTemp, Log, TEXT("StartFire"));
 
-	if (!ProjectileClass || bIsShieldActive) return; // 5-4-1: 방패 든 동안 사격 차단
+	if (bIsShieldActive) return; // 5-4-1: 방패 든 동안 사격 차단
 
 	UWeaponDataAsset* Weapon = GetCurrentWeaponData();
 	if (!Weapon) return;
@@ -327,6 +341,8 @@ void ALumenCharacter::FireOnce(UWeaponDataAsset* Weapon)
 
 void ALumenCharacter::FireProjectileSet(UWeaponDataAsset* Weapon)
 {
+	if (!ProjectileClass) return;
+
 	const int32 Count = FMath::Max(1, Weapon->PelletCount);
 	const FVector BaseDirection = FVector(CurrentAimDirection, 0.f);
 
@@ -347,7 +363,7 @@ void ALumenCharacter::FireProjectileSet(UWeaponDataAsset* Weapon)
 
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(MuzzleTrace), false, this);
 		FHitResult PreHit;
-		if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), SpawnLocation, ECC_Visibility, Params))
+		if (GetWorld()->LineTraceSingleByChannel(PreHit, GetActorLocation(), SpawnLocation, ECC_ProjectileTrace, Params))
 		{
 			SpawnLocation = PreHit.ImpactPoint - Direction * 2.f;
 		}
@@ -434,6 +450,8 @@ void ALumenCharacter::StartShield(const FInputActionValue& Value)
 	{
 		ShieldActor->SetShieldActive(true);
 	}
+	//조준선 비활성화
+	AimLineComp->SetVisible(false);
 
 	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed * ShieldMoveSpeedMultiplier; // 5-2-1: 이동 허용(감속)
 }
@@ -449,6 +467,8 @@ void ALumenCharacter::StopShield(const FInputActionValue& Value)
 	{
 		ShieldActor->SetShieldActive(false);
 	}
+	//조준선 활성화
+	AimLineComp->SetVisible(true);
 
 	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
 }
@@ -510,6 +530,7 @@ void ALumenCharacter::SelectColor(ELumenWeaponColor NewColor)
 {
 	// TODO(3주차, 5-7): 색 코어 보유 여부 확인 후에만 전환 허용 (지금은 무조건 전환)
 	CurrentColor = NewColor;
+	AimLineComp->SetWeaponData(GetCurrentWeaponData()); // ← SetWeaponColor에서 변경
 	UE_LOG(LogTemp, Log, TEXT("SelectColor: %d"), static_cast<uint8>(CurrentColor));
 }
 

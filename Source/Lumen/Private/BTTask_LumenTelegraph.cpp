@@ -17,23 +17,33 @@ EBTNodeResult::Type UBTTask_LumenTelegraph::ExecuteTask(UBehaviorTreeComponent& 
 {
 	AAIController* AICon = OwnerComp.GetAIOwner();
 	ALumenEnemyCharacter* Enemy = AICon ? Cast<ALumenEnemyCharacter>(AICon->GetPawn()) : nullptr;
-
 	if (!Enemy || !Enemy->WeaponData)
 	{
 		return EBTNodeResult::Failed;
 	}
 
+	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
+
+	// 타겟 방향 계산 - FireWeapon 쪽 Task와 동일한 원칙(BB의 TargetActor 기준)
+	FVector Direction = Enemy->GetActorForwardVector();
+	if (BB)
+	{
+		if (AActor* Target = Cast<AActor>(BB->GetValueAsObject(LumenBBKeys::TargetActor)))
+		{
+			Direction = (Target->GetActorLocation() - Enemy->GetActorLocation()).GetSafeNormal2D();
+		}
+	}
+
 	FMemory* Mem = reinterpret_cast<FMemory*>(NodeMemory);
 	Mem->ElapsedTime = 0.f;
-	Mem->Duration = Enemy->WeaponData->TelegraphDuration; // 5-5-3: 하드코딩 대신 DataAsset에서 읽음
+	Mem->Duration = Enemy->WeaponData->TelegraphDuration;
 
-	if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
+	if (BB)
 	{
 		BB->SetValueAsEnum(LumenBBKeys::AttackState, static_cast<uint8>(ELumenAttackState::Telegraph));
 	}
 
-	Enemy->ShowTelegraph(Mem->Duration, Enemy->WeaponData->TelegraphWidthDegrees);
-
+	Enemy->ShowTelegraph(Mem->Duration, Enemy->WeaponData->TelegraphWidthDegrees, Direction);
 	return EBTNodeResult::InProgress;
 }
 

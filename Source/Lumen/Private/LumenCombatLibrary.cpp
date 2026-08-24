@@ -107,7 +107,7 @@ void ULumenCombatLibrary::FireReflectiveLineTrace(
 			{
 				break;
 			}
-
+			
 			// 방패에 맞았으면 이 시점부터 Instigator/Causer를 방패 소유자로 재설정
 			// (AMirrorActor는 소유권 개념이 없으므로 그대로 통과 — 3주차 §2-4-1과 동일 원칙)
 			if (AShieldActor* Shield = Cast<AShieldActor>(HitActor))
@@ -129,6 +129,13 @@ void ULumenCombatLibrary::FireReflectiveLineTrace(
 
 			// 반사 공식은 각도 구분 없이 동일 적용 (5-2-1, UE의 FVector::MirrorByVector)
 			CurrentDirection = CurrentDirection.MirrorByVector(Normal).GetSafeNormal();
+
+		    // 반사각 보정
+			if (AShieldActor* ReflectingShield = Cast<AShieldActor>(HitActor))
+			{
+				CurrentDirection = ReflectingShield->ApplyAimAssist(CurrentDirection, Hit.ImpactPoint);
+			}
+
 			CurrentStart = Hit.ImpactPoint + Normal * 0.5f; // 재충돌 방지 오프셋
 			ActorToIgnoreThisSegment = HitActor;
 

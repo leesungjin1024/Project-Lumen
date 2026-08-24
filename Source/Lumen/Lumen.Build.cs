@@ -12,9 +12,9 @@ public class Lumen : ModuleRules
 			"Core", "CoreUObject", "Engine", "InputCore", 
 			"EnhancedInput", 
 			"Niagara" ,
-            "AIModule",        // °Á √ﬂ∞°: BehaviorTree, BTTaskNode, BTService, BlackboardComponent, AAIController
-            "GameplayTasks"    // °Á √ﬂ∞°: BehaviorTreeComponent∞° GameplayTasksComponent∏¶ ªÛº”
-		
-		});
+            "AIModule",        // ‚Üê Ï∂îÍ∞Ä: BehaviorTree, BTTaskNode, BTService, BlackboardComponent, AAIController
+            "GameplayTasks",   // ‚Üê Ï∂îÍ∞Ä: BehaviorTreeComponentÍ∞Ä GameplayTasksComponentÎ•º ÏÉÅÏÜç
+            "ProceduralMeshComponent", //Ï∂îÍ∞Ä: Ï°∞Ï§ÄÏÑ†
+        });
 	}
 }

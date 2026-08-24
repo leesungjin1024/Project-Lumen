@@ -20,6 +20,7 @@ class UHeatComponent;
 class UHealthComponent;
 class UNiagaraSystem;
 class AProjectile;
+class ULumenAimLineComponent;
 
 UCLASS()
 class LUMEN_API ALumenEnemyCharacter : public ACharacter
@@ -38,6 +39,10 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lumen|Combat")
 	TObjectPtr<UHealthComponent> HealthComponent;
+
+	// 텔레그래프 비주얼 - 플레이어 조준선과 동일 컴포넌트 재사용 (5-5)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lumen|Telegraph")
+	TObjectPtr<ULumenAimLineComponent> TelegraphComp;
 
 	// 반사 스파크 VFX - AProjectile/캐릭터와 동일 에셋을 지정해 시각적 일관성 유지
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Lumen|VFX")
@@ -62,8 +67,8 @@ public:
 	// C++ 기본 구현은 로그만 남기고, 실제 비주얼(조준선 렌더링 등, 5-5 표)은
 	// 블루프린트에서 오버라이드해서 채우는 걸 권장 (5-11 "블루프린트는 UI/애니메이션에 예외 허용"과 동일한 맥락)
 	UFUNCTION(BlueprintNativeEvent, Category = "Lumen|Telegraph")
-	void ShowTelegraph(float Duration, float WidthDegrees);
-	virtual void ShowTelegraph_Implementation(float Duration, float WidthDegrees);
+	void ShowTelegraph(float Duration, float WidthDegrees, FVector AimDirection);
+	virtual void ShowTelegraph_Implementation(float Duration, float WidthDegrees, FVector AimDirection);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Lumen|Telegraph")
 	void HideTelegraph();

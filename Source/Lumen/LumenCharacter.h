@@ -17,6 +17,7 @@ class AMirrorActor;
 class UHeatComponent;
 class UWeaponDataAsset;
 class AShieldActor;
+class ULumenAimLineComponent;
 
 UENUM(BlueprintType)
 enum class ELumenWeaponColor : uint8
@@ -135,6 +136,10 @@ protected:
 
 	/** 마우스 커서가 가리키는 월드 좌표를 캐릭터 높이의 평면과 교차시켜 조준 방향을 구함 */
 	void UpdateMouseAimDirection();
+
+	// 조준선
+	UPROPERTY(VisibleAnywhere)
+	ULumenAimLineComponent* AimLineComp;
 
 	//체력
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")

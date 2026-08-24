@@ -9,6 +9,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "AIController.h"
 #include "BrainComponent.h"
+#include "Lumen/LumenAimLineComponent.h"
 
 ALumenEnemyCharacter::ALumenEnemyCharacter()
 {
@@ -16,6 +17,7 @@ ALumenEnemyCharacter::ALumenEnemyCharacter()
 
 	HeatComponent = CreateDefaultSubobject<UHeatComponent>(TEXT("HeatComponent"));
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	TelegraphComp = CreateDefaultSubobject<ULumenAimLineComponent>(TEXT("TelegraphComp")); // ← 추가
 
 	// 5-5-3의 AttackState 흐름과 무관하게, 캐릭터 자체 회전은 조준 방향을 바로 향하도록
 	// (아이소메트릭 카메라·명확성 우선 철학, 4-1) — 플레이어와 동일 원칙
@@ -29,6 +31,14 @@ void ALumenEnemyCharacter::BeginPlay()
 	if (HealthComponent)
 	{
 		HealthComponent->OnDeath.AddDynamic(this, &ALumenEnemyCharacter::HandleDeath);
+	}
+	if (TelegraphComp && WeaponData)
+	{
+		TelegraphComp->SetWeaponData(WeaponData);
+	}
+	if (TelegraphComp)
+	{
+		TelegraphComp->SetVisible(false); // 평소엔 안 보임 - Telegraph 태스크 중에만 켜짐
 	}
 }
 
@@ -156,13 +166,28 @@ void ALumenEnemyCharacter::HandleDeath()
 	}
 }
 
-void ALumenEnemyCharacter::ShowTelegraph_Implementation(float Duration, float WidthDegrees)
+void ALumenEnemyCharacter::ShowTelegraph_Implementation(float Duration, float WidthDegrees, FVector AimDirection)
 {
-	// 기본 구현은 로그만 - 실제 조준선 비주얼(5-5 표)은 블루프린트에서 오버라이드
+	// 텔레그래프 시작 시점에 타겟 방향으로 1회 스냅 회전 (틱 없이도 충분 - 5-5-3)
+	FRotator NewRot = AimDirection.Rotation();
+	NewRot.Pitch = 0.f;
+	NewRot.Roll = 0.f;
+	SetActorRotation(NewRot);
+
+	if (TelegraphComp)
+	{
+		TelegraphComp->SetAimDirection(AimDirection);
+		TelegraphComp->SetVisible(true);
+	}
+
 	UE_LOG(LogTemp, Verbose, TEXT("[%s] Telegraph 표시 (Duration=%.2f, Width=%.1f)"), *GetName(), Duration, WidthDegrees);
 }
 
 void ALumenEnemyCharacter::HideTelegraph_Implementation()
 {
+	if (TelegraphComp)
+	{
+		TelegraphComp->SetVisible(false);
+	}
 	UE_LOG(LogTemp, Verbose, TEXT("[%s] Telegraph 해제"), *GetName());
 }

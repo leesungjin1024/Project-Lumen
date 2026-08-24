@@ -42,6 +42,16 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Fire")
     float FireRate = 8.f; // 초당 발사 횟수
 
+    // 거리 기반 데미지 감쇄 (5-2-1: 빨강/파랑 공통 — 빛이 약해지다 사라지는 특성 반영)
+    UPROPERTY(EditDefaultsOnly, Category = "Fire|Falloff", meta = (EditCondition = "FireMode == EWeaponFireMode::Projectile"))
+    float FalloffStartRange = 500.f; // 이 거리까지는 100% 데미지
+
+    UPROPERTY(EditDefaultsOnly, Category = "Fire|Falloff", meta = (EditCondition = "FireMode == EWeaponFireMode::Projectile"))
+    float FalloffEndRange = 1500.f; // 이 거리부터는 MinDamageMultiplier로 고정 — 조준선 길이도 이 값을 그대로 씀
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Fire|Falloff", meta = (EditCondition = "FireMode == EWeaponFireMode::Projectile", ClampMin = "0.0", ClampMax = "1.0"))
+    float MinDamageMultiplier = 0.2f; // 최대 감쇄 시 남는 데미지 비율 (가안)
+
     // --- 파랑(샷건) 전용: 펠릿 (5-1) ---
     UPROPERTY(EditDefaultsOnly, Category = "Fire|Pellet", meta = (EditCondition = "FireMode == EWeaponFireMode::Projectile"))
     int32 PelletCount = 1; // 빨강=1, 파랑=5~8
@@ -51,16 +61,6 @@ public:
 
     UPROPERTY(EditDefaultsOnly, Category = "Fire|Pellet", meta = (EditCondition = "PelletCount > 1"))
     float PelletJitterDegrees = 1.5f; // 균등 분산 위에 얹는 미세 랜덤값
-
-    // 파랑(펠릿) 전용: 거리 기반 데미지 감쇄
-    UPROPERTY(EditDefaultsOnly, Category = "Fire|Pellet", meta = (EditCondition = "PelletCount > 1"))
-    float FalloffStartRange = 500.f; // 이 거리까지는 100% 데미지
-
-    UPROPERTY(EditDefaultsOnly, Category = "Fire|Pellet", meta = (EditCondition = "PelletCount > 1"))
-    float FalloffEndRange = 1500.f; // 이 거리부터는 MinDamageMultiplier로 고정
-
-    UPROPERTY(EditDefaultsOnly, Category = "Fire|Pellet", meta = (EditCondition = "PelletCount > 1", ClampMin = "0.0", ClampMax = "1.0"))
-    float MinDamageMultiplier = 0.2f; // 최대 감쇄 시 남는 데미지 비율 (가안)
 
     // --- 초록(스나이퍼) 전용: 관통 (5-1) ---
     UPROPERTY(EditDefaultsOnly, Category = "Fire|LineTrace", meta = (EditCondition = "FireMode == EWeaponFireMode::LineTrace"))
