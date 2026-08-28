@@ -19,6 +19,7 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Pawn.h"
 #include "LumenCollisionChannels.h" 
+#include "Lumen/PuzzleSensorActor.h"
 
 
 void ULumenCombatLibrary::FireReflectiveLineTrace(
@@ -163,6 +164,16 @@ void ULumenCombatLibrary::FireReflectiveLineTrace(
 			// 관통 아님 - 데미지 주고 정지
 			break;
 		}
+
+		// ── SENSOR HOOK 시작 ──────────────────────────────────────────────
+		// 벽 등, 반사 대상도 데미지 대상(HealthComponent)도 아닌 것 - 정지하는 분기.
+		// 센서는 반사도 아니고 HealthComponent도 없으니 정확히 이 분기로 들어옴.
+		// 초록(라인트레이스)은 항상 Green 고정이라 색 조회가 필요 없음.
+		if (APuzzleSensorActor* Sensor = Cast<APuzzleSensorActor>(HitActor))
+		{
+			Sensor->NotifyHitByLight(ELumenWeaponColor::Green);
+		}
+		// ── SENSOR HOOK 끝 ────────────────────────────────────────────────
 
 		// 벽 등, 반사 대상도 데미지 대상도 아닌 것 - 정지
 		break;

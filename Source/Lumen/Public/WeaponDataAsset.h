@@ -12,6 +12,14 @@ enum class EWeaponFireMode : uint8
     LineTrace  UMETA(DisplayName = "LineTrace")     // 초록
 };
 
+UENUM(BlueprintType)
+enum class ELumenWeaponColor : uint8
+{
+    Red,
+    Blue,
+    Green
+};
+
 UCLASS(BlueprintType)
 class LUMEN_API UWeaponDataAsset : public UPrimaryDataAsset
 {
@@ -83,3 +91,16 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Telegraph")
     float TelegraphWidthDegrees = 5.f; // 빨강 5 / 파랑 40 / 초록 1 (5-5 표)
 };
+
+inline ELumenWeaponColor DeriveWeaponColor(const UWeaponDataAsset* Data)
+{
+    if (!Data)
+    {
+        return ELumenWeaponColor::Red;
+    }
+    if (Data->FireMode == EWeaponFireMode::LineTrace)
+    {
+        return ELumenWeaponColor::Green;
+    }
+    return (Data->PelletCount > 1) ? ELumenWeaponColor::Blue : ELumenWeaponColor::Red;
+}

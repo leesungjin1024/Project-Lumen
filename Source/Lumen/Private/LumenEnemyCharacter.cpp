@@ -9,6 +9,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "AIController.h"
 #include "BrainComponent.h"
+#include "LumenCollisionChannels.h"
 #include "Lumen/LumenAimLineComponent.h"
 
 ALumenEnemyCharacter::ALumenEnemyCharacter()
@@ -115,7 +116,7 @@ void ALumenEnemyCharacter::FireProjectileSet(FVector Direction)
 		FHitResult PreHit;
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(this);
-		if (World->LineTraceSingleByChannel(PreHit, Muzzle, Muzzle + PelletDirection * 50.f, ECC_Visibility, Params))
+		if (World->LineTraceSingleByChannel(PreHit, Muzzle, Muzzle + PelletDirection * 50.f, ECC_ProjectileTrace, Params))
 		{
 			SpawnLocation = PreHit.ImpactPoint - PelletDirection * 5.f;
 		}
@@ -164,6 +165,18 @@ void ALumenEnemyCharacter::HandleDeath()
 	{
 		HeatComponent->SetComponentTickEnabled(false);
 	}
+	if (HealthComponent)
+	{
+		HealthComponent->SetComponentTickEnabled(false); // ← 추가: "DEAD" 디버그 텍스트 계속 그려지는 것 방지
+	}
+	// ── 시각적으로 숨기기 (신규 추가) ──────────────────────────────
+	// TelegraphComp를 숨기는 함수는 이미 있음 (HideTelegraph_Implementation) — 그대로 재사용
+	HideTelegraph_Implementation();
+
+	// 몸/콜리전도 숨김 — HeatComponent/HealthComponent의 DrawDebugString이
+	// 계속 위에 떠 있는 것도 같이 없어짐 (둘 다 Owner->GetActorLocation() 기준으로 그림)
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
 }
 
 void ALumenEnemyCharacter::ShowTelegraph_Implementation(float Duration, float WidthDegrees, FVector AimDirection)

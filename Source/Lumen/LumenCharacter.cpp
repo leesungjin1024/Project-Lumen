@@ -11,6 +11,7 @@
 #include "Lumen/Reflection/Projectile.h"
 #include "Lumen/Public/WeaponDataAsset.h"
 #include "Lumen/Public/HeatComponent.h"
+#include "HealthComponent.h"
 #include "DrawDebugHelpers.h"
 #include "LumenCollisionChannels.h" 
 #include "Kismet/GameplayStatics.h"
@@ -18,6 +19,11 @@
 #include "LumenCombatLibrary.h"
 #include "WeaponDataAsset.h"
 #include "LumenAimLineComponent.h"
+#include "LumenPlayerState.h"
+#include "CombatRoomVolume.h"
+#include "GameFramework/PlayerStart.h"
+#include "RoomVolume.h"
+#include "LumenDoorActor.h"
 
 ALumenCharacter::ALumenCharacter()
 {
@@ -100,6 +106,11 @@ void ALumenCharacter::BeginPlay()
 		bIsShieldActive, GetCharacterMovement()->MaxWalkSpeed, DefaultMaxWalkSpeed);
 
 	AimLineComp->SetWeaponData(GetCurrentWeaponData());
+	if (HealthComponent)
+	{
+	   HealthComponent->OnDeath.AddDynamic(this, &ALumenCharacter::HandlePlayerDeath);
+	}
+
 }
 
 void ALumenCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -555,11 +566,86 @@ void ALumenCharacter::ClearInteractableMirror(AMirrorActor* Mirror)
 
 void ALumenCharacter::Interact(const FInputActionValue& Value)
 {
-	// TODO: 상호작용 대상 정의 필요 (문서에 아직 없음 - 필요 시 5-6 퍼즐 오브젝트와 연동)
 	UE_LOG(LogTemp, Log, TEXT("Interact"));
+
 	if (CurrentInteractableMirror)
 	{
 		CurrentInteractableMirror->RotateStep();
+		return;
+	}
+
+	ALumenDoorActor* NearestDoor = nullptr;
+	float NearestDistSq = TNumericLimits<float>::Max();
+
+	for (ALumenDoorActor* Door : OverlappingInteractableDoors)
+	{
+		if (!Door)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(GetActorLocation(), Door->GetActorLocation());
+		if (DistSq < NearestDistSq)
+		{
+			NearestDistSq = DistSq;
+			NearestDoor = Door;
+		}
+	}
+
+	if (NearestDoor)
+	{
+		NearestDoor->ToggleInteract();
 	}
 }
 
+void ALumenCharacter::HandlePlayerDeath()
+{
+	// 텔레포트(SetActorLocationAndRotation)가 방 트리거 박스 밖으로 나가는 걸로 처리되면서
+	// OnEntryEndOverlap → ClearCurrentRoomIfMatches()가 동기적으로 발동해 CurrentRoom이
+	// 지워지는 문제가 실제로 발생함 — 그래서 텔레포트 전에 미리 복사해서 안전하게 보관
+	ARoomVolume* RoomToReset = CurrentRoom;
+
+	// APawn::GetPlayerState()는 템플릿이 아니라 APlayerState*를 반환 — Cast로 다운캐스팅 필요
+	ALumenPlayerState* PS = Cast<ALumenPlayerState>(GetPlayerState());
+	if (!PS)
+	{
+		return;
+	}
+
+	FTransform RespawnTransform = PS->LastCheckpointTransform;
+
+	if (PS->LastCheckpointID.IsNone())
+	{
+		if (AActor* Start = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass()))
+		{
+			RespawnTransform = Start->GetActorTransform();
+		}
+		else
+		{
+			RespawnTransform = GetActorTransform();
+		}
+	}
+
+	SetActorLocationAndRotation(RespawnTransform.GetLocation(), RespawnTransform.GetRotation());
+
+	// CurrentRoom이 아니라 미리 복사해둔 RoomToReset을 사용 — 텔레포트로 인해 CurrentRoom이
+	// 지워졌더라도(방 밖으로 나가는 걸로 처리됐더라도) 리셋은 정확히 실행됨
+	if (RoomToReset)
+	{
+		RoomToReset->ResetRoom();
+	}
+
+	if (UHealthComponent* Health = FindComponentByClass<UHealthComponent>())
+	{
+		Health->ResetHealth();
+	}
+	if (UHeatComponent* Heat = FindComponentByClass<UHeatComponent>())
+	{
+		Heat->ResetHeat();
+	}
+}
+
+void ALumenCharacter::HandleFellOutOfWorld()
+{
+	// Kill Z는 데미지 판정 자체를 건너뛰고 곧장 사망 처리와 동일한 경로를 재사용
+	HandlePlayerDeath();
+}

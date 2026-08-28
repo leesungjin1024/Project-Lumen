@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "WeaponDataAsset.h"
 #include "Projectile.generated.h"
 
 class USphereComponent;
@@ -79,4 +80,9 @@ protected:
 
 	//반사시 데미지 적용
 	UPROPERTY() AController* DamageInstigatorController;
+
+	//색검증
+	UPROPERTY()
+	ELumenWeaponColor ProjectileColor = ELumenWeaponColor::Red;
+
 };

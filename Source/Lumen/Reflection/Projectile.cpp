@@ -5,9 +5,11 @@
 #include "DrawDebugHelpers.h"
 #include "WeaponDataAsset.h"
 #include "Reflective.h"
-#include "Kismet/GameplayStatics.h" // 신규 추가
+#include "Kismet/GameplayStatics.h" 
 #include "ShieldActor.h"
 #include "LumenCollisionChannels.h"  
+#include "Lumen/PuzzleSensorActor.h"
+
 
 TAutoConsoleVariable<bool> CVarShowReflectionDebug(
 	TEXT("ShowReflectionDebug"),
@@ -113,6 +115,7 @@ void AProjectile::InitFromWeaponData(UWeaponDataAsset* WeaponData, const FVector
 
 	Speed = WeaponData->ProjectileSpeed; // ← 먼저 Speed 멤버 자체를 갱신
 	InitVelocity(Direction);            // ← 순수 방향만 넘기고, 내부에서 갱신된 Speed를 사용하게 함
+	ProjectileColor = DeriveWeaponColor(WeaponData);
 }
 
 void AProjectile::HandleHit(const FHitResult& Hit)
@@ -125,10 +128,20 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 	{
 		if (OtherActor)
 		{
-			const float FinalDamage = Damage * CalculateFalloffMultiplier();
-			UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, DamageInstigatorController, this, nullptr);
+			// ── SENSOR HOOK 시작 ──────────────────────────────────────────
+			if (APuzzleSensorActor* Sensor = Cast<APuzzleSensorActor>(OtherActor))
+			{
+				// AProjectile.h에 색 정보가 없어서 ProjectileColor 멤버 추가 필요
+				// (AProjectile_ColorMember_Patch.h 참고 — InitFromWeaponData에서 채워야 함)
+				Sensor->NotifyHitByLight(ProjectileColor);
+			}
+			else
+			{
+				const float FinalDamage = Damage * CalculateFalloffMultiplier();
+				UGameplayStatics::ApplyDamage(OtherActor, FinalDamage, DamageInstigatorController, this, nullptr);
+			}
+			// ── SENSOR HOOK 끝 ────────────────────────────────────────────
 		}
-
 		SetActorLocation(Hit.ImpactPoint);
 		Velocity = FVector::ZeroVector;
 		bStopped = true;
@@ -201,8 +214,8 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 		DrawDebugLine(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + ReflectedDir * 300.f, FColor::Yellow, false, 3.f, 0, 2.f);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Reflected! Incident=%s Normal=%s NewDir=%s"),
-		*IncidentDir.ToString(), *SurfaceNormal.ToString(), *ReflectedDir.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("Reflected! Incident=%s Normal=%s NewDir=%s"),
+		//*IncidentDir.ToString(), *SurfaceNormal.ToString(), *ReflectedDir.ToString());
 }
 
 float AProjectile::CalculateFalloffMultiplier() const

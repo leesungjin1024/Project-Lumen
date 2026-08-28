@@ -38,8 +38,8 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
 	AController* InstigatedBy, AActor* DamageCauser)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Damage Check] bIsDead=%d Damage=%.1f bIsInvulnerable=%d"),
-		bIsDead, Damage, bIsInvulnerable);
+	//UE_LOG(LogTemp, Warning, TEXT("[Damage Check] bIsDead=%d Damage=%.1f bIsInvulnerable=%d"),
+		//bIsDead, Damage, bIsInvulnerable);
 
 	if (bIsDead || Damage <= 0.f || bIsInvulnerable)   // ← bIsInvulnerable 추가
 	{
@@ -47,10 +47,10 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 	}
 
 	// 검증용 로그
-	UE_LOG(LogTemp, Warning, TEXT("[Damage] Target=%s Damage=%.1f Instigator=%s Causer=%s"),
-		*GetOwner()->GetName(), Damage,
-		InstigatedBy ? *InstigatedBy->GetName() : TEXT("NULL"),
-		DamageCauser ? *DamageCauser->GetName() : TEXT("NULL"));
+	//UE_LOG(LogTemp, Warning, TEXT("[Damage] Target=%s Damage=%.1f Instigator=%s Causer=%s"),
+		//*GetOwner()->GetName(), Damage,
+		//InstigatedBy ? *InstigatedBy->GetName() : TEXT("NULL"),
+		//DamageCauser ? *DamageCauser->GetName() : TEXT("NULL"));
 
 	CurrentHealth = FMath::Max(0.f, CurrentHealth - Damage);
 	OnHealthChanged.Broadcast(GetHealthRatio(), Damage);
@@ -92,4 +92,16 @@ void UHealthComponent::UpdateHealthDebugDisplay()
 		DrawDebugString(GetWorld(), Owner->GetActorLocation() + FVector(0, 0, 220.f),  // ← 위치도 올림
 			DebugText, nullptr, TextColor, 0.f, true);   // ← Duration 0 (매 틱 그려서 안 겹침)
 	}
+}
+
+void UHealthComponent::ResetHealth()
+{
+	CurrentHealth = MaxHealth;
+	bIsDead = false;
+
+	OnHealthChanged.Broadcast(GetHealthRatio(), 0.f); // 리스폰이므로 DamageAmount는 0
+
+#if !UE_BUILD_SHIPPING
+	UpdateHealthDebugDisplay();
+#endif
 }

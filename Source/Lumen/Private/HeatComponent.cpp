@@ -93,3 +93,28 @@ void UHeatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
     }
 #endif
 }
+
+void UHeatComponent::ResetHeat()
+{
+    const bool bWasOverheated = (State == EHeatState::Overheated);
+
+    CurrentHeat = 0.f;
+    OverheatTimer = 0.f;
+    State = EHeatState::Ready;
+
+    OnHeatChanged.Broadcast(GetHeatRatio());
+
+    if (bWasOverheated)
+    {
+        OnHeatRecovered.Broadcast();
+    }
+}
+
+void UHeatComponent::SetHeatFraction(float Fraction)
+{
+    // 과열 상태로 직접 만들지 않음 — 스폰 시점의 "출발선"만 다르게 주는 용도이므로
+    // State는 그대로 Ready 유지, TickComponent의 자연 냉각/과열 로직이 이후를 처리
+    Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
+    CurrentHeat = MaxHeat * Fraction;
+    OnHeatChanged.Broadcast(GetHeatRatio());
+}

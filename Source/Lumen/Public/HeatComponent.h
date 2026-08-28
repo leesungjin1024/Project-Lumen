@@ -56,6 +56,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Heat")
     float GetHeatRatio() const { return MaxHeat > 0.f ? CurrentHeat / MaxHeat : 0.f; }
 
+    // 체크포인트 리스폰 시 발열을 완전히 초기화 (플레이어 사망→재시작 연결용, 신규)
+    UFUNCTION(BlueprintCallable, Category = "Heat")
+    void ResetHeat();
+
+    // 전투룸에 여러 적을 스폰할 때 발열 사이클을 서로 어긋나게 하기 위한 초기값 설정 (신규)
+    // Fraction은 0~1, MaxHeat 대비 비율. 과열 상태로 직접 진입시키지는 않음(Ready 유지).
+    UFUNCTION(BlueprintCallable, Category = "Heat")
+    void SetHeatFraction(float Fraction);
+
 protected:
     virtual void BeginPlay() override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

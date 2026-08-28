@@ -33,6 +33,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void SetInvulnerable(bool bNewInvulnerable) { bIsInvulnerable = bNewInvulnerable; }
 
+	// 체크포인트 리스폰 시 체력을 완전히 회복 (플레이어 사망→재시작 연결용, 신규)
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void ResetHealth();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override; // ← 추가

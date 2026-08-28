@@ -5,6 +5,7 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "HealthComponent.h"
+#include "WeaponDataAsset.h"
 #include "LumenCharacter.generated.h"
 
 
@@ -18,14 +19,9 @@ class UHeatComponent;
 class UWeaponDataAsset;
 class AShieldActor;
 class ULumenAimLineComponent;
-
-UENUM(BlueprintType)
-enum class ELumenWeaponColor : uint8
-{
-	Red,
-	Blue,
-	Green
-};
+class ACombatRoomVolume; 
+class ALumenDoorActor;
+class ARoomVolume;
 
 UCLASS()
 class LUMEN_API ALumenCharacter : public ACharacter
@@ -36,6 +32,27 @@ public:
 	ALumenCharacter();
 	void SetInteractableMirror(AMirrorActor* Mirror);
 	void ClearInteractableMirror(AMirrorActor* Mirror);
+
+	UFUNCTION() void HandlePlayerDeath();   // OnDeath가 파라미터 없는 delegate라 파라미터 제거
+	void HandleFellOutOfWorld();
+
+	void SetCurrentCombatRoom(ACombatRoomVolume* Room) { CurrentCombatRoom = Room; }
+	void SetCurrentRoom(ARoomVolume* Room) { CurrentRoom = Room; }
+
+	void AddInteractableDoor(ALumenDoorActor* Door) { OverlappingInteractableDoors.AddUnique(Door); }
+	void RemoveInteractableDoor(ALumenDoorActor* Door) { OverlappingInteractableDoors.Remove(Door); }
+
+
+	// 방 밖으로 나갈 때 호출 — "내가 지금도 CurrentRoom인 경우에만" 지움
+	// (이미 다른 방에 들어가서 CurrentRoom이 바뀐 뒤에 옛날 방의 EndOverlap이 늦게
+	//  들어와서 새 방 참조를 잘못 지우는 걸 방지)
+	void ClearCurrentRoomIfMatches(ARoomVolume* Room)
+	{
+		if (CurrentRoom == Room)
+		{
+			CurrentRoom = nullptr;
+		}
+	}
 
 protected:
 	virtual void BeginPlay() override;
@@ -220,4 +237,13 @@ private:
 	bool bDashOnCooldown = false;
 	FTimerHandle DashDurationTimerHandle;
 	FTimerHandle DashCooldownTimerHandle;
+
+	UPROPERTY()
+	TObjectPtr<ACombatRoomVolume> CurrentCombatRoom;
+
+	UPROPERTY()
+	TObjectPtr<ARoomVolume> CurrentRoom;
+
+	UPROPERTY()
+	TArray<TObjectPtr<ALumenDoorActor>> OverlappingInteractableDoors;
 };
