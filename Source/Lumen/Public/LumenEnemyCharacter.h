@@ -13,6 +13,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/WidgetComponent.h"
 #include "LumenEnemyCharacter.generated.h"
 
 class UWeaponDataAsset;
@@ -73,6 +74,12 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Lumen|Telegraph")
 	void HideTelegraph();
 	virtual void HideTelegraph_Implementation();
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> HealthBarWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UWidgetComponent> HealthBarWidgetComp;
 
 private:
 	// 파랑(샷건) 펠릿 발사 - 3주차 §2-3 FireProjectileSet과 동일한 패턴

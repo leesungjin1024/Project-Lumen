@@ -105,3 +105,23 @@ void UHealthComponent::ResetHealth()
 	UpdateHealthDebugDisplay();
 #endif
 }
+
+int32 UHealthComponent::GetFilledChunkCount() const
+{
+	if (NumHealthChunks <= 0)
+	{
+		return 0;
+	}
+	// 초록(2칸)처럼 한 번에 여러 칸이 깎여도 내부는 그대로 숫자 HP로 계산,
+	// 표시만 칸 단위로 올림 처리 (5-9 조각형 HP 원칙)
+	return FMath::CeilToInt(GetHealthRatio() * NumHealthChunks);
+}
+
+void UHealthComponent::SetTargeted(bool bNewTargeted)
+{
+	if (bIsTargeted != bNewTargeted)
+	{
+		bIsTargeted = bNewTargeted;
+		OnTargetedChanged.Broadcast(bIsTargeted);
+	}
+}

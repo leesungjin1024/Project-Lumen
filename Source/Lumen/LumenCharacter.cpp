@@ -24,7 +24,7 @@
 #include "GameFramework/PlayerStart.h"
 #include "RoomVolume.h"
 #include "LumenDoorActor.h"
-
+#include "Blueprint/UserWidget.h" 
 ALumenCharacter::ALumenCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -74,6 +74,10 @@ void ALumenCharacter::BeginPlay()
 		PC->bShowMouseCursor = true;
 		PC->DefaultMouseCursor = EMouseCursor::Crosshairs; // 기본 화살표 대신 십자선
 
+		FInputModeGameOnly InputMode;
+		InputMode.SetConsumeCaptureMouseDown(false); // 캡처 클릭이 게임 입력을 잡아먹지 않게
+		PC->SetInputMode(InputMode);
+
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
@@ -106,11 +110,34 @@ void ALumenCharacter::BeginPlay()
 		bIsShieldActive, GetCharacterMovement()->MaxWalkSpeed, DefaultMaxWalkSpeed);
 
 	AimLineComp->SetWeaponData(GetCurrentWeaponData());
+
 	if (HealthComponent)
 	{
 	   HealthComponent->OnDeath.AddDynamic(this, &ALumenCharacter::HandlePlayerDeath);
 	}
 
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (PlayerHUDWidgetClass)
+		{
+			if (UUserWidget* HUD = CreateWidget<UUserWidget>(PC, PlayerHUDWidgetClass))
+			{
+				HUD->AddToViewport();
+			}
+		}
+	}
+
+	// 세이브 로드 위치 적용 - PlayerState가 Pawn보다 먼저 생성되므로
+	// 이 시점엔 이미 LumenPlayerState::BeginPlay()에서 값이 채워져 있음
+	if (ALumenPlayerState* PS = GetPlayerState<ALumenPlayerState>())
+	{
+		if (PS->LastCheckpointOrder >= 0) // 기본값 -1 = 로드된 세이브 없음(새 게임)
+		{
+			SetActorLocationAndRotation(
+				PS->LastCheckpointTransform.GetLocation(),
+				PS->LastCheckpointTransform.GetRotation());
+		}
+	}
 }
 
 void ALumenCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -195,6 +222,7 @@ void ALumenCharacter::Tick(float DeltaTime)
 	const FRotator TargetRotation = FRotator(0.f, TargetYaw, 0.f);
 
 	AimLineComp->SetAimDirection(FVector(CurrentAimDirection, 0.f));
+	UpdateCurrentTarget();
 
 	if (bIsShieldActive)
 	{
@@ -295,7 +323,7 @@ UWeaponDataAsset* ALumenCharacter::GetCurrentWeaponData() const
 void ALumenCharacter::StartFire(const FInputActionValue& Value)
 {
 
-	UE_LOG(LogTemp, Log, TEXT("StartFire"));
+	//UE_LOG(LogTemp, Log, TEXT("StartFire"));
 
 	if (bIsShieldActive) return; // 5-4-1: 방패 든 동안 사격 차단
 
@@ -324,7 +352,7 @@ void ALumenCharacter::StartFire(const FInputActionValue& Value)
 void ALumenCharacter::StopFire(const FInputActionValue& Value)
 {
 	// TODO(2주차, 5-1-1): 발사 중단 -> 발열 냉각 시작
-	UE_LOG(LogTemp, Log, TEXT("StopFire"));
+	//UE_LOG(LogTemp, Log, TEXT("StopFire"));
 	// 자동연사(빨강) 중이었다면 타이머 정지. 반자동 무기는 애초에 타이머가 없으므로 안전하게 무시됨
 	GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
 
@@ -648,4 +676,45 @@ void ALumenCharacter::HandleFellOutOfWorld()
 {
 	// Kill Z는 데미지 판정 자체를 건너뛰고 곧장 사망 처리와 동일한 경로를 재사용
 	HandlePlayerDeath();
+}
+
+void ALumenCharacter::UpdateCurrentTarget()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FVector Direction = FVector(CurrentAimDirection, 0.f).GetSafeNormal();
+	// FireLineTrace/FireProjectileSet과 동일한 100cm 오프셋 컨벤션 재사용
+	// — 캐릭터 앞 60cm에 항상 붙어있는 ShieldActor를 자연히 건너뛰게 됨
+	const FVector Start = GetActorLocation() + Direction * 100.f;
+	const FVector End = Start + Direction * TargetingTraceRange;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TargetingTrace), false, this);
+
+	FHitResult Hit;
+	const bool bHit = World->LineTraceSingleByChannel(Hit, Start, End, ECC_ProjectileTrace, Params);
+
+	AActor* NewTarget = nullptr;
+	if (bHit && Hit.GetActor() && Hit.GetActor()->FindComponentByClass<UHealthComponent>())
+	{
+		NewTarget = Hit.GetActor();
+	}
+
+	if (NewTarget != CurrentTargetedActor)
+	{
+		if (UHealthComponent* PrevHealth = CurrentTargetedActor ? CurrentTargetedActor->FindComponentByClass<UHealthComponent>() : nullptr)
+		{
+			PrevHealth->SetTargeted(false);
+		}
+
+		if (UHealthComponent* NewHealth = NewTarget ? NewTarget->FindComponentByClass<UHealthComponent>() : nullptr)
+		{
+			NewHealth->SetTargeted(true);
+		}
+
+		CurrentTargetedActor = NewTarget;
+	}
 }

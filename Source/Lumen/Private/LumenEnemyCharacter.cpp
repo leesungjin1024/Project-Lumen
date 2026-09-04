@@ -41,6 +41,27 @@ void ALumenEnemyCharacter::BeginPlay()
 	{
 		TelegraphComp->SetVisible(false); // 평소엔 안 보임 - Telegraph 태스크 중에만 켜짐
 	}
+
+	if (HealthBarWidgetClass)
+	{
+		HealthBarWidgetComp = NewObject<UWidgetComponent>(this);
+		HealthBarWidgetComp->SetWidgetClass(HealthBarWidgetClass);
+		HealthBarWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+		HealthBarWidgetComp->RegisterComponent();
+		HealthBarWidgetComp->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		HealthBarWidgetComp->SetRelativeLocation(FVector(0, 0, 220.f));
+		HealthBarWidgetComp->SetDrawSize(FVector2D(200, 50));
+
+		if (UUserWidget* Widget = HealthBarWidgetComp->GetUserWidgetObject())
+		{
+			// 블루프린트에서 만든 OwnerHealthComponent 변수에 값 주입
+			FProperty* Prop = Widget->GetClass()->FindPropertyByName(TEXT("OwnerHealthComponent"));
+			if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Prop))
+			{
+				ObjProp->SetObjectPropertyValue_InContainer(Widget, HealthComponent);
+			}
+		}
+	}
 }
 
 FVector ALumenEnemyCharacter::GetMuzzleLocation() const

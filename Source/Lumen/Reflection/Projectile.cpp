@@ -142,9 +142,16 @@ void AProjectile::HandleHit(const FHitResult& Hit)
 			}
 			// ── SENSOR HOOK 끝 ────────────────────────────────────────────
 		}
-		SetActorLocation(Hit.ImpactPoint);
-		Velocity = FVector::ZeroVector;
-		bStopped = true;
+
+		if (ReflectionSparkFX)  // 임팩트 전용 이펙트가 따로 없으면 우선 이거 재사용
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ReflectionSparkFX, Hit.ImpactPoint, FRotator::ZeroRotator);
+		}
+
+		//SetActorLocation(Hit.ImpactPoint);
+		// = FVector::ZeroVector;
+		//bStopped = true;
+		Destroy();
 		return;
 	}
 

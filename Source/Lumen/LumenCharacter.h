@@ -54,6 +54,10 @@ public:
 		}
 	}
 
+	// 플레이어 조각형 HP 위젯 - 에디터에서 WBP_PlayerHUD 할당
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> PlayerHUDWidgetClass;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -246,4 +250,13 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<ALumenDoorActor>> OverlappingInteractableDoors;
+
+	UPROPERTY()
+	TObjectPtr<AActor> CurrentTargetedActor = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
+	float TargetingTraceRange = 1500.f;
+
+	void UpdateCurrentTarget();
 };
+

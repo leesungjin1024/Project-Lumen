@@ -46,7 +46,7 @@ void AShieldActor::SetShieldActive(bool bActive)
 
 FVector AShieldActor::ApplyAimAssist(const FVector& ReflectedDirection, const FVector& Origin) const
 {
-	UE_LOG(LogTemp, Warning, TEXT("ApplyAimAssist called")); //
+	//UE_LOG(LogTemp, Warning, TEXT("ApplyAimAssist called")); //
 
 	const FVector NormalizedReflected = ReflectedDirection.GetSafeNormal2D();
 
@@ -58,7 +58,7 @@ FVector AShieldActor::ApplyAimAssist(const FVector& ReflectedDirection, const FV
 	FCollisionObjectQueryParams ObjParams(ECC_Pawn);
 
 	GetWorld()->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, ObjParams, SearchSphere);
-	UE_LOG(LogTemp, Warning, TEXT("Overlaps found: %d"), Overlaps.Num()); //
+	//UE_LOG(LogTemp, Warning, TEXT("Overlaps found: %d"), Overlaps.Num()); //
 
 	for (const FOverlapResult& O : Overlaps)
 	{
@@ -86,7 +86,7 @@ FVector AShieldActor::ApplyAimAssist(const FVector& ReflectedDirection, const FV
 	}
 
 //
-	UE_LOG(LogTemp, Warning, TEXT("BestTarget: %s, Angle: %.1f"), BestTarget ? *BestTarget->GetName() : TEXT("None"), BestAngleDeg);
+	//UE_LOG(LogTemp, Warning, TEXT("BestTarget: %s, Angle: %.1f"), BestTarget ? *BestTarget->GetName() : TEXT("None"), BestAngleDeg);
 	if (!BestTarget)
 	{
 		return NormalizedReflected; // 원뿔 안에 적이 없으면 원래 계산값 그대로

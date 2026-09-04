@@ -15,6 +15,7 @@ public class Lumen : ModuleRules
             "AIModule",        // ← 추가: BehaviorTree, BTTaskNode, BTService, BlackboardComponent, AAIController
             "GameplayTasks",   // ← 추가: BehaviorTreeComponent가 GameplayTasksComponent를 상속
             "ProceduralMeshComponent", //추가: 조준선
+			"UMG", "Slate", "SlateCore", // ui 
         });
 	}
 }
