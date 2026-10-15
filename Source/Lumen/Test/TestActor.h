@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// ATestActor — 테스트용 더미 액터. UHealthComponent만 붙어 있음. 다른 C++ 코드에서 참조하지 않음.
 
 #pragma once
 
@@ -13,15 +13,12 @@ class LUMEN_API ATestActor : public AActor
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	ATestActor();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")

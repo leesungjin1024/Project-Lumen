@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Lumen 게임 모듈 공용 헤더 (현재 CoreMinimal만 포함)
 
 #pragma once
 

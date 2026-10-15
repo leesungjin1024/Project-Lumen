@@ -1,4 +1,5 @@
-// Reflective.h
+// IReflective â€” ë¹›ì„ ë°˜ì‚¬í•˜ëŠ” ì•¡í„°ì˜ ì¸í„°í˜ì´ìŠ¤. ë°˜ì‚¬ ë…¸ë©€ë§Œ ì œê³µí•˜ê³  ë°˜ì‚¬ ê³„ì‚°ì€ í˜¸ì¶œ ì¸¡ì—ì„œ í•¨.
+// ì—°ê²°: AMirrorActor, AShieldActor / AProjectile::HandleHit, ULumenCombatLibrary::FireReflectiveLineTrace
 #pragma once
 
 #include "CoreMinimal.h"
@@ -17,6 +18,6 @@ class LUMEN_API IReflective
 	GENERATED_BODY()
 
 public:
-	// Á¤Àû °Å¿ïÀº °íÁ¤µÈ Ç¥¸é ³ë¸Ö¸¸ ¹İÈ¯, È¸Àü °¡´É °Å¿ï/¹æÆĞ´Â ÇöÀç °¢µµÀÇ ³ë¸Ö ¹İÈ¯
+	// í˜„ì¬ ê°ë„ì˜ ë°˜ì‚¬ ë…¸ë©€ ë°˜í™˜. ê±°ìš¸/ë°©íŒ¨ ëª¨ë‘ ì•¡í„° ì •ë©´(forward)ì„ Z=0ìœ¼ë¡œ í‰íƒ„í™”í•´ ìˆ˜í‰ ë°˜ì‚¬ë§Œ í•˜ë„ë¡ êµ¬í˜„
 	virtual FVector GetReflectionNormal(const FHitResult& Hit) const = 0;
 };
